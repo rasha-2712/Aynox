@@ -1,6 +1,7 @@
 import { demoSecurities } from "@/lib/data/demo-data";
 import { deduplicateNews } from "@/lib/news/deduplicate";
 import { MockNewsProvider } from "@/lib/news/mock-news-provider";
+import { isValidNewsArticleId } from "@/lib/news/validation";
 import { demoSentimentClassifier, type SentimentClassifier } from "@/lib/news/sentiment";
 import type { NewsArticle, NewsArticleInput } from "@/types/news";
 import type { NewsProvider } from "@/lib/news/provider";
@@ -29,6 +30,9 @@ function articleRelevance(input: NewsArticleInput): NewsArticle["relevance"] {
 }
 
 export function analyzeNewsArticle(input: NewsArticleInput): NewsArticle {
+  if (!input || !isValidNewsArticleId((input as NewsArticleInput | null)?.id)) {
+    throw new TypeError("News article ID must be a non-empty string without surrounding whitespace.");
+  }
   return {
     ...input,
     symbol: input.symbol.toUpperCase(),
@@ -43,7 +47,8 @@ export async function getNewsArticles(): Promise<NewsArticle[]> {
   const inputs = await activeNewsProvider.listArticles();
   const knownSecurityIds = new Set(demoSecurities.map((security) => security.id));
   const analyzed = inputs
-    .filter((article) => knownSecurityIds.has(article.securityId)
+    .filter((article) => isValidNewsArticleId((article as NewsArticleInput | null)?.id)
+      && knownSecurityIds.has(article.securityId)
       && (!activeNewsProvider.isDemo || article.contentKind === "demo"))
     .map(analyzeNewsArticle);
   return deduplicateNews(analyzed);

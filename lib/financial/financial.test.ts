@@ -214,6 +214,20 @@ describe("observation validation and synthetic fixtures", () => {
     expect(profile.data && validateCompanyProfileRecord(profile.data)).toEqual([]);
   });
 
+  it("rejects inconsistent provider, provenance and entitlement data environments", async () => {
+    const response = await provider.getFinancialStatements(identity("NVDA"));
+    const providerMismatch = validateProviderResponse({ ...response, dataEnvironment: "development-restricted" }, validateFinancialStatementBundle);
+    expect(providerMismatch).toContainEqual(expect.objectContaining({ code: "PROVIDER_ENTITLEMENT_ENVIRONMENT_MISMATCH" }));
+
+    const observation = response.data!.incomeStatement.observations[0];
+    const provenanceMismatch = validateFinancialObservation({ ...observation, source: { ...observation.source, dataEnvironment: "development-restricted" } });
+    expect(provenanceMismatch).toContainEqual(expect.objectContaining({ code: "SOURCE_ENTITLEMENT_ENVIRONMENT_MISMATCH" }));
+
+    const profile = await provider.getCompanyProfile(identity("NVDA"));
+    const profileMismatch = profile.data && validateCompanyProfileRecord({ ...profile.data, source: { ...profile.data.source, dataEnvironment: "development-restricted" } });
+    expect(profileMismatch).toContainEqual(expect.objectContaining({ code: "SOURCE_ENTITLEMENT_ENVIRONMENT_MISMATCH" }));
+  });
+
   it("rejects invalid calendar dates, reversed periods, missing provenance and inconsistent fiscal metadata", async () => {
     const response = await provider.getFinancialStatements(identity("NVDA"));
     const valid = response.data!.incomeStatement.observations[0];

@@ -63,7 +63,13 @@ export function validateProviderResponse(
   if (!isTimestamp(input.retrievedAt)) add("retrievedAt", "INVALID_TIMESTAMP", "Provider retrieval timestamp is invalid.");
   if (!environments.includes(input.dataEnvironment as DataEnvironment)) add("dataEnvironment", "INVALID_ENVIRONMENT", "Provider data environment is missing or unsupported.");
   if (!Array.isArray(input.entitlements)) add("entitlements", "INVALID_ENTITLEMENTS", "Provider entitlement records are required.");
-  else input.entitlements.forEach((entitlement, index) => validateEntitlement(entitlement as DataEntitlement, `entitlements[${index}]`, add));
+  else {
+    input.entitlements.forEach((entitlement, index) => validateEntitlement(entitlement as DataEntitlement, `entitlements[${index}]`, add));
+    if (environments.includes(input.dataEnvironment as DataEnvironment)
+        && input.entitlements.some((entitlement) => isRecord(entitlement) && entitlement.dataEnvironment !== input.dataEnvironment)) {
+      add("entitlements", "PROVIDER_ENTITLEMENT_ENVIRONMENT_MISMATCH", "Provider response and entitlement data environments must agree.");
+    }
+  }
   if ((input.status === "complete" || input.status === "partial") && input.data === null) add("data", "MISSING_PROVIDER_DATA", "Successful provider responses must contain validated data.");
   if (input.data !== null && input.data !== undefined) issues.push(...validateData(input.data));
   return issues;
@@ -242,6 +248,10 @@ function validateProvenance(
         if (records.some((record) => record.providerId !== input.providerId || record.dataset !== input.dataset || record.market !== input.market)) {
           add(`${path}.entitlements`, "ENTITLEMENT_SCOPE_MISMATCH", "Source entitlements do not match the source provider, dataset and market.");
         }
+      }
+      if (environments.includes(input.dataEnvironment as DataEnvironment)
+          && records.some((record) => record.dataEnvironment !== input.dataEnvironment)) {
+        add(`${path}.entitlements`, "SOURCE_ENTITLEMENT_ENVIRONMENT_MISMATCH", "Source provenance and entitlement data environments must agree.");
       }
       for (const [index, record] of records.entries()) validateEntitlement(record, `${path}.entitlements[${index}]`, add);
     }

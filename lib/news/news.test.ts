@@ -3,7 +3,8 @@ import { demoNewsArticles } from "@/lib/news/demo-news";
 import { areDuplicateHeadlines, deduplicateNews, normalizeHeadline } from "@/lib/news/deduplicate";
 import { aggregateTrackedCompanyNews, calculateSentimentDistribution, filterNewsArticles } from "@/lib/news/query";
 import { generateCompanyNewsReport } from "@/lib/news/report";
-import { analyzeNewsArticle, getNewsArticles } from "@/lib/news/service";
+import { analyzeNewsArticle, getNewsArticles, setNewsProvider } from "@/lib/news/service";
+import { MockNewsProvider } from "@/lib/news/mock-news-provider";
 import { DemoLexiconSentimentClassifier } from "@/lib/news/sentiment";
 import { demoSecurities } from "@/lib/data/demo-data";
 import type { NewsArticle, NewsArticleInput } from "@/types/news";
@@ -28,6 +29,22 @@ describe("company news intelligence", () => {
     const tsm = demoSecurities.find((security) => security.symbol === "TSM")!;
     expect(articles.some((article) => article.securityId === tsm.id && article.companyName !== tsm.name)).toBe(true);
     expect(await getNewsArticles()).toEqual(articles);
+  });
+
+  it("rejects malformed IDs at news ingestion and direct analysis boundaries", async () => {
+    const invalidIds: unknown[] = ["", " \t ", undefined, 17];
+    const malformed = invalidIds.map((id) => ({ ...seed, id })) as unknown as NewsArticleInput[];
+    const valid = { ...seed, id: "valid-ingested-id" };
+    setNewsProvider({ providerName: "test", isDemo: true, async listArticles() { return [...malformed, valid]; } });
+    try {
+      const ingested = await getNewsArticles();
+      expect(ingested.map((article) => article.id)).toEqual([valid.id]);
+      for (const id of invalidIds) {
+        expect(() => analyzeNewsArticle({ ...seed, id } as unknown as NewsArticleInput)).toThrow(TypeError);
+      }
+    } finally {
+      setNewsProvider(new MockNewsProvider());
+    }
   });
 
   it("filters by stable company, ticker, topic, inclusive date range, and headline/summary search", async () => {
@@ -129,6 +146,17 @@ describe("company news intelligence", () => {
     expect(adequate.possibleImplications.every((item) => item.articleId && item.text)).toBe(true);
     expect(adequate.sentimentDistribution.total).toBe(adequate.coverage.articleCount);
     expect(adequate.positiveDevelopments.every((item) => item.status === "classified" && item.sentiment === "Positive")).toBe(true);
+  });
+
+  it("excludes malformed article IDs from generated company reports and records the limitation", () => {
+    const security = demoSecurities[0];
+    const valid = makeArticle({ id: "report-valid" });
+    const invalid = ["", "   ", undefined, 8].map((id) => ({ ...valid, id })) as unknown as NewsArticle[];
+    const report = generateCompanyNewsReport(security, [...invalid, valid]);
+    expect(report.coverage.articleCount).toBe(1);
+    expect(report.mostRelevantDevelopments.map((item) => item.articleId)).toEqual([valid.id]);
+    expect(report.possibleImplications.map((item) => item.articleId)).toEqual([valid.id]);
+    expect(report.risksAndUncertainties.some((item) => item.includes("4 articles were excluded"))).toBe(true);
   });
 
   it("aggregates only the currently tracked security IDs and handles no-news companies", async () => {

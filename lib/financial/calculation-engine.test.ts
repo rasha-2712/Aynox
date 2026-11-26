@@ -8,7 +8,6 @@ import { calculateFinancialMetric } from "@/lib/financial/calculation-engine";
 import { financialFormulaCatalogue, getFinancialFormula, isFormulaDefinitionSupported } from "@/lib/financial/formula-catalogue";
 import { createSyntheticDemoEntitlement } from "@/lib/financial/permissions";
 import { deriveDiscreteQuarterFromYtd } from "@/lib/financial/period-normalization";
-import { validateFinancialObservation } from "@/lib/financial/validation";
 import type { FinancialObservation, ReportingPeriod } from "@/types/financial";
 
 const CALCULATED_AT = "2026-11-26T10:00:00.000Z";

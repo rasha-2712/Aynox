@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id         String             @id @default(cuid())
+  email      String?            @unique
+  createdAt  DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime           @updatedAt @db.Timestamptz(3)
+  portfolios TrackedPortfolio[]
+}
+
+model Security {
+  id           String                 @id @default(cuid())
+  symbol       String                 @db.VarChar(24)
+  name         String                 @db.VarChar(160)
+  exchange     String                 @db.VarChar(80)
+  currency     String                 @db.VarChar(3)
+  sector       String?                @db.VarChar(100)
+  createdAt    DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime               @updatedAt @db.Timestamptz(3)
+  memberships  TrackedPortfolioMembership[]
+  observations MarketObservation[]
+
+  @@unique([symbol, exchange])
+  @@index([name])
+  @@index([exchange, currency])
+}
+
+model TrackedPortfolio {
+  id          String                        @id @default(cuid())
+  userId      String
+  name        String                        @default("My tracked portfolio") @db.VarChar(100)
+  createdAt   DateTime                      @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime                      @updatedAt @db.Timestamptz(3)
+  user        User                          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  memberships TrackedPortfolioMembership[]
+
+  @@unique([userId, name])
+  @@index([userId, updatedAt])
+}
+
+model TrackedPortfolioMembership {
+  id            String           @id @default(cuid())
+  portfolioId   String
+  securityId    String
+  effectiveFrom DateTime         @db.Timestamptz(3)
+  effectiveTo   DateTime?        @db.Timestamptz(3)
+  createdAt     DateTime         @default(now()) @db.Timestamptz(3)
+  portfolio     TrackedPortfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  security      Security         @relation(fields: [securityId], references: [id], onDelete: Restrict)
+
+  @@unique([portfolioId, securityId, effectiveFrom])
+  @@index([portfolioId, effectiveFrom, effectiveTo])
+  @@index([securityId, effectiveFrom])
+}
+
+model MarketObservation {
+  id                  String   @id @default(cuid())
+  securityId          String
+  observedAt          DateTime @db.Timestamptz(3)
+  price               Decimal  @db.Decimal(20, 8)
+  currency            String   @db.VarChar(3)
+  provider            String   @db.VarChar(80)
+  marketStatus        String?  @db.VarChar(40)
+  adjustmentBasis     String?  @db.VarChar(120)
+  splitAdjusted       Boolean  @default(false)
+  dividendsExcluded   Boolean  @default(false)
+  isDemo              Boolean  @default(false)
+  createdAt           DateTime @default(now()) @db.Timestamptz(3)
+  security            Security @relation(fields: [securityId], references: [id], onDelete: Cascade)
+
+  @@unique([securityId, provider, observedAt])
+  @@index([securityId, observedAt])
+  @@index([provider, observedAt])
+}

@@ -1,400 +1,337 @@
 # Aynox MVP Product Requirements Document
 
 **Product:** Aynox  
-**Version:** 1.0  
-**Status:** MVP baseline; founder approvals listed in Section 15  
-**Audience:** Founders, product, design, engineering, data/ML, QA, and operations  
-**Background:** StoCast university capstone; not a production specification
+**Version:** 1.1  
+**Status:** Product direction confirmed; implementation/provider decisions are in the [decision register](aynox-product-decisions.md)  
+**Audience:** Founders, product, design, engineering, data/ML, QA, operations
 
-## 1. Purpose and direction
+## 1. Product summary
 
-Aynox is an AI-powered investment research and portfolio intelligence platform. It brings market data, historical trends, stock forecasts, company news, news sentiment, ESG insights, and community posts into a coherent research workflow.
+Aynox is an AI-powered investment research and portfolio intelligence platform launching from Qatar. It helps beginner investors, existing retail investors, university students, and young professionals understand stocks through approachable company research and meaningful analytical depth.
 
-This PRD defines the initial product from the confirmed direction. The StoCast prototype and its claims are historical background only. They do not establish model quality, data rights, production readiness, or suitability for investment decisions.
+The product combines stock discovery, market data, historical forecasting when validated, company news intelligence and sentiment reports, manually selected tracked-stock analysis, transparent ESG context, and community features. Global coverage will grow as data coverage, licensing, availability, cost, and quality are verified.
 
-The MVP portfolio is a **user-curated set of stocks to track**. It does not represent brokerage holdings. Users are not assumed to provide share quantity, purchase price, or transaction history. Aynox must not describe tracked-stock price changes as the user's investment returns, profit, or loss.
+A tracked portfolio is a user-selected group of stocks for monitoring and analysis. It is not a record of user-owned assets. Aynox does not connect to brokerage accounts, synchronize actual holdings, or calculate actual holdings, cost basis, profit, or loss.
+
+## 2. Goals and audience
 
 ### Goals
 
-1. Help users research supported public companies from one company view.
-2. Provide current/latest and historical prices with clear source and freshness.
-3. Analyze the tracked stocks individually and collectively using transparent methods.
-4. Surface relevant company news, attributed summaries, sentiment, and ESG context.
-5. Support community posts with basic safety and moderation.
-6. Present forecasts as uncertain model outputs and publish no unsupported performance claims.
+1. Make supported-stock discovery and company research approachable.
+2. Provide market and historical data with source, exchange, currency, market status, and freshness.
+3. Provide rigorous and qualified forecasts where evaluation supports release.
+4. Analyze manually selected stocks individually and collectively.
+5. Improve company-news relevance and provide sourced reports and sentiment context.
+6. Provide transparent ESG scores and comparison context from verified sources.
+7. Extend the platform with community interaction after the core research and portfolio experience.
 
-### Proposed pilot outcomes
+### Target users
 
-These are proposed targets, not established results; founders should approve or revise before launch.
+- Beginner investors seeking clear explanations and limitations.
+- Existing retail investors seeking company, market, and tracked-stock analysis.
+- University students and young professionals learning about markets or researching stocks.
 
-- ≥70% of users completing onboarding track at least one symbol.
-- ≥60% of users adding a symbol view a company, news, or portfolio analysis panel in that session.
-- ≥30% of users with a tracked portfolio return within 7 days during a controlled pilot.
-- ≥90% of eligible quote views show a source timestamp and an explicit current, delayed, stale, or unavailable state.
-- ≥95% of displayed news items in reports have a source link and company association record.
-- No unresolved release-blocking privacy, security, licensing, or accessibility issues.
+Serve beginners accessibly without removing analytical depth. User research may prioritize an initial pilot audience/use case, but does not silently narrow the confirmed target audience.
 
-## 2. Target users and problems
+### Proposed pilot measures
 
-### Primary users
+These are hypotheses, not results. Approve metric definitions, cohorts, and thresholds in the decision register before using as go/no-go criteria.
 
-- **Self-directed retail investors** who follow public companies and want to review price movements, news, and risk context efficiently.
-- **Research-curious newer investors** who need plain-language explanations and clear separation of facts, analysis, and model output.
-- **ESG-conscious or thematic investors** who want sourced ESG context alongside company and market research.
+- Share of onboarded pilot users who track at least one stock.
+- Share of tracked-stock users who view company/news/portfolio analysis in the same session.
+- Seven-day return use among tracked-stock users.
+- Share of quote views showing source, timestamp, and market/freshness state.
+- Share of report articles with source links and company association.
+- User comprehension of the index and difference from actual investment returns.
+- No unresolved release-blocking privacy, security, data-rights, or accessibility issue.
 
-### Secondary users
+## 3. Product vision and delivery sequence
 
-- Active market observers following multiple companies or sectors.
-- Community members sharing company research and discussing market topics.
+### Product vision
 
-The launch geography, supported exchanges, languages, age restrictions, and precise initial segment remain founder decisions.
+1. Stock discovery and market data.
+2. Stock forecasting subject to rigorous out-of-sample evaluation.
+3. Portfolio analysis and monitoring of manually selected stocks.
+4. Improved Yahoo Finance news filtering.
+5. Structured company news reports with article- and company-level sentiment.
+6. ESG analysis with transparent methodology, source attribution, and comparison context.
+7. Community posts and interaction.
 
-### Problems addressed
+### Initial MVP: Phase 1 and Phase 2
 
-- Research is fragmented across price pages, news feeds, ESG data, and personal spreadsheets.
-- Users need help filtering company-specific coverage from general market news.
-- A ticker list alone does not explain group performance, sector concentration, sentiment coverage, or how stocks have moved together.
-- Forecasts, sentiment labels, and ESG scores can appear more certain than their inputs justify.
-- Users need provenance, timestamps, limitations, and a way to inspect the underlying sources.
+**Phase 1 — Core investment research**
+- Stock discovery and company profile for supported securities.
+- Latest available market data, including real-time quotes where supported by the selected provider and applicable data entitlements, plus historical market data.
+- Yahoo Finance company-news relevance filtering, matching, and deduplication, subject to source rights and availability.
+- Structured reports with source attribution and article/company sentiment.
+- Forecasting only if the approved evaluation gate passes; otherwise keep forecasts unavailable.
 
-## 3. MVP scope
+**Phase 2 — Portfolio intelligence**
+- Manual add/remove of tracked stocks.
+- Individual analysis and the equal-weighted, daily rebalanced index.
+- Collective news/sentiment, sector exposure, concentration, supported diversification observations, and sourced ESG insights.
+- Dashboard-based monitoring; advanced alerts are not required initially.
 
-### Included
+Phases 1 and 2 together comprise the initial MVP experience. Pilot release cut and supported securities depend on verified provider feasibility and open decisions. The approved six-market proof of concept remains deferred until the appropriate development stage and is not part of this initial scope.
 
-- Accounts and user-specific saved data.
-- Manual stock search and add/remove to a tracked portfolio.
-- Latest/live market data and historical price views.
-- Individual and collective tracked-stock analysis.
-- Historical-data forecasting with uncertainty and evaluation evidence.
-- Improved company news filtering using Yahoo Finance news or another approved source.
-- Company news reports with source links, summaries, sentiment, and coverage context.
-- ESG company data and portfolio insights with source/methodology disclosures.
-- Community posts and basic moderation/reporting.
-- Responsive, accessible web experience with complete loading, partial, empty, stale, and error states.
+### Controlled MVP pilot: Phase 3
 
-### Explicitly excluded from the initial version
+Evaluate the Phase 1–2 research and portfolio experience with a limited user group and supported securities. Review pilot findings and material issues before prioritizing community and other extended features.
 
-- Standalone chatbot.
-- Brokerage account integrations, account linking, or trade execution.
+### Extended platform: Phase 4
+
+Community posts and interaction, expanded ESG, additional markets/securities, and advanced monitoring/alerts follow review of the controlled MVP pilot. Community is in the product vision but is not a Phase 1–2 launch blocker or a Phase 3 pilot prerequisite.
+### Current exclusions
+
+- Brokerage account connections.
 - Automatic synchronization of actual holdings.
-- User investment return, P&L, tax-lot, or allocation claims without actual positions and cost basis.
-- Automated buy/sell recommendations, guaranteed outcomes, social trading, or copy trading.
+- Actual investment accounting: quantities, purchase prices, cost basis, realized/unrealized P&L.
+- Buy/sell instructions or guaranteed outcomes.
 - Direct messages and private groups.
 
-## 4. Definitions
+## 4. Definitions and portfolio methodology
 
-- **Tracked portfolio:** User-selected symbols saved for research. No quantity or cost basis is implied.
-- **Tracked-stock performance:** Price movement for a symbol over a named period.
-- **Tracked basket/index:** A normalized collective view of selected symbols using a disclosed weighting and rebalancing rule.
-- **Investment return:** Return on actual invested capital; requires holdings, quantities, transactions, and cost basis and is outside MVP.
-- **Company news report:** Dated synthesis of linked articles, coverage volume/themes, and aggregated sentiment; not a replacement for original articles.
-- **Forecast:** Model-generated estimate with horizon, data cut-off, uncertainty, and model version; not a promise or recommendation.
-- **Stale data:** Data older than its approved provider/use-case freshness threshold, clearly identified in the UI.
+- **Tracked portfolio:** User-selected securities for research; no ownership or position size is implied.
+- **Tracked-stock price return:** Price change over a stated period using verified provider-adjusted prices that account for stock splits; cash dividends are excluded initially.
+- **Tracked portfolio index:** Synthetic, equal-weighted daily index of manually selected stocks, compounded from 100 using each constituent’s local-currency price return; FX movements are excluded and it is not a common-currency or personal investment return.
+- **Company news report:** Structured, dated synthesis of linked coverage, themes, and sentiment; it does not replace source articles.
+- **Forecast:** Model estimate with horizon, data cut-off, uncertainty, and limitations; not a promise or recommendation.
+- **Data freshness:** Age/status of provider data, shown with source and timestamp.
+
+For each eligible constituent i and daily interval t, let P(i,t) be a verified, corporate-action-consistent price in that security’s local trading currency. Calculate daily returns on that security’s exchange-specific trading calendar. The initial index equally weights eligible constituents’ local-currency daily percentage returns and excludes FX movements; it is not a common-currency investment return. The interface must disclose this limitation. A common-currency index may be considered later if reliable FX data and an approved methodology are available. Verify that the selected provider-adjusted historical price field accounts for stock splits, excludes cash dividends for this initial price-return index, and treats symbol changes and other relevant corporate actions consistently. Never assume an adjusted-close field excludes dividends without verification.
+
+- r(i,t) = P(i,t) / P(i,t-1) - 1
+- r(portfolio,t) = (1 / N(t)) × sum over eligible constituents of r(i,t)
+- I(t) = I(t-1) × (1 + r(portfolio,t)), with base index I(0) = 100.
+
+N(t) is the number of eligible tracked constituents for interval t. Each constituent has equal weight at the start of each daily interval, with daily rebalancing. Use each security’s own exchange-specific trading calendar to determine valid daily intervals. If a constituent lacks a valid price for an interval, temporarily exclude it and equally reweight the remaining eligible constituents; disclose eligible, included, and excluded counts/coverage. Never treat a missing price as a zero return or silently carry a stale value. Record security additions and removals with effective timestamps. A newly added security contributes beginning with the next eligible calculation interval; a removed security stops contributing from its effective removal interval. Historical intervals retain the membership that applied then; never retroactively recalculate index history from the current tracked list. The UI must explain the local-currency synthetic price-return index and must not describe it as a common-currency return, globally invested portfolio return, user return, account value, profit, or loss. Exact timestamp boundaries and cross-exchange session-date alignment remain implementation details to define against the provider’s exchange calendars.
 
 ## 5. Feature requirements
 
-### 5.1 Accounts and onboarding
+### 5.1 Stock discovery and profile — Phase 1
 
-**Purpose:** Protect personalized portfolios and support community participation.
+Search supported tickers/company names and resolve canonical security identity. Show exchange, currency, sector when available, quote/history, market status, news/report, and forecast availability. Clearly identify unsupported or partially covered securities.
 
-Provide registration, sign-in/out, account recovery, and profile basics. Require authentication for private portfolios and publishing. Use production-suitable password/session handling, verification, and rate limits. Provide account deletion and retention behavior before public release. Never expose credentials or sensitive user data in browser code, URLs, logs, or analytics.
+**Accept:** Supported queries resolve with exchange/currency where available; ambiguous, unsupported, empty, and partial results are explicit; no universal-coverage claim is made.
 
-### 5.2 Company search and profile
+### 5.2 Latest available and historical data — Phase 1
 
-**Purpose:** Provide one research hub per supported company.
+Show the latest available market data, including real-time quotes where supported by the selected provider and applicable data entitlements, plus price/percent change, history, currency, exchange, session status, source, and timestamp. Numeric freshness/update targets remain open pending provider feasibility. Never silently show stale or delayed data as live.
 
-Search by ticker or company name, resolve to canonical security identity, and show company name, symbol, exchange/sector when available, quote/history, forecast access, company news, ESG coverage, and community discussion links. Each data section identifies source and timestamp or an unavailable/partial state. Distinguish facts, derived metrics, generated analysis, forecasts, and user posts.
+**Accept:** Quote provenance, timestamp, currency, and freshness are visible; real-time is labeled only when supported by selected provider and applicable entitlements; stale, delayed, unavailable, and market-closed states are distinct; no numeric freshness claim appears before approval; chart period, units, gaps, and adjustment basis are clear; missing data is never rendered as zero.
 
-### 5.3 Market data
+### 5.3 Forecasting — Phase 1, gated
 
-**Purpose:** Show timely prices and historical market context.
+Select ticker, history window, and approved horizon. Show actual and forecast values, uncertainty, model/version, cut-off, and limitations. Validate data sufficiency. Expose only after the founder-approved out-of-sample gate passes; otherwise show unavailable/validation-pending state.
 
-Display latest quote, price and percent change, and session range/volume where available and permitted. Show currency, market/session context, provider, and as-of time. Mark data as real-time, delayed, cached, stale, or unavailable. Do not promise real-time service until vendor entitlements and service levels are confirmed.
+Evaluation must be chronological holdout or rolling-origin, compared with simple baselines, and report data window, horizon, metrics, and failure cases. Never present training fit as forecast accuracy or forecasts as investment instructions.
 
-Use a replaceable provider adapter. Handle rate limits and outages with bounded retries, caching, visible freshness, and graceful degradation. Never silently present cached data as live.
+### 5.4 Company news intelligence — Phase 1
 
-### 5.4 Tracked portfolio intelligence
+Use Yahoo Finance news as the intended initial source. Filter by company/security and time; match entities, deduplicate, and preserve headline, publisher, URL, and publication time. Verify source access, commercial/display rights, and operational feasibility. Another source requires approval, not assumption.
 
-**Purpose:** Make a manually selected list useful for both individual and collective analysis.
+**Accept:** Filtered news is attributable and company-linked; duplicate, stale, delayed, empty, and partial states are explicit; relevance and sentiment are measured on reviewed evaluation data before quality claims.
 
-Users can add, remove, search, and reorder tracked symbols. Portfolio view includes:
+### 5.5 Reports and sentiment — Phase 1
 
-- Individual tracked symbol price and period change.
-- Collective tracked-stock index/chart with the approved methodology and base date.
-- Sector exposure and concentration based on clearly labeled ticker-count or equal-weight proxy.
-- Portfolio and per-company news sentiment with article counts and selected time window.
-- ESG coverage and summary across covered companies, with aggregation method.
-- Diversification observations from sector mix and, where sufficient historical data exists, return correlations.
+A selected-period company report includes company, period, as-of time, article count, linked articles, concise synthesis, key themes, article sentiment, aggregated company sentiment, method/version, and coverage limitations. Label generated analysis. Do not reproduce full article text unless rights permit. Sentiment is descriptive, not evidence of future price movement.
 
-**Semantic safeguards:**
+**Accept:** Report statements trace to cited coverage; sparse/conflicting/no coverage is disclosed; sentiment shows method/version and counts; unsupported factual or predictive claims are not presented.
 
-- Do not require or assume share quantities, purchase prices, or ownership.
-- Do not label tracked-stock performance “your return,” “profit,” or “loss.”
-- Do not imply equal-weight exposure represents the user's actual capital allocation.
-- Disclose excluded symbols, missing sectors, currencies, or dates for partial metrics.
-- Describe concentration/diversification rather than implying risk has been removed.
+### 5.6 Manual portfolio intelligence — Phase 2
 
-**Provisional group calculation (approval required):** Normalize each included symbol’s adjusted close to 100 at the period start, average daily normalized values equally, and rebalance daily. Display included/total symbol counts. Founders must approve this approach, corporate-action handling, currencies, missing dates, and minimum coverage before design/build lock.
+Users add/remove tracked stocks. Show individual price return and the index defined above, plus sector exposure, concentration, portfolio/company news and sentiment, and diversification observations only when data support them.
 
-### 5.5 Stock forecasting
+**Accept:** Selection persists without quantity or purchase price. Deterministic examples verify equal daily weights, local-currency constituent returns, FX and cash-dividend exclusion, daily compounding, and base 100. Calendar fixtures verify each security uses its exchange trading sessions. Missing-price fixtures verify temporary exclusion, equal reweighting of eligible constituents, visible eligible/included/excluded coverage, and no zero-return substitution or stale-price carry. Add/remove fixtures verify effective timestamps, next-eligible-interval entry, removal from the effective interval, preserved historical membership, and no retroactive recalculation from the current list. Provider-field fixtures verify stock-split handling, dividend exclusion, and consistent symbol-change/other corporate-action treatment; adjusted-close dividend semantics are verified explicitly. The UI discloses local currency and FX exclusion and never calls the index a common-currency return or actual personal investment performance.
 
-**Purpose:** Let users explore potential price paths derived from historical data.
+### 5.7 ESG — Phase 2; expanded in Phase 4
 
-Select ticker, historical window, and approved forecast horizon. Display actual history, forecast path, uncertainty interval, data cut-off, model/version, and explanatory limitations. Reject inadequate or invalid history with a clear reason.
+Show source/provider, as-of date, scale/direction, pillar values, methodology, coverage, and meaningful comparison context. Distinguish source values from Aynox-derived insight; do not treat unverified scores as objective facts or missing values as zero.
 
-Any accuracy claim must use chronological holdout or rolling-origin evaluation, be compared with a simple baseline, and identify dataset window, horizon, metrics, and limitations. Do not present training fit as forecast accuracy. Do not present forecasts as investment instructions or guaranteed prices. Founders and the data/ML owner must approve the quality gate before enabling forecast claims.
+**Accept:** Incompatible/unverified scores are not ranked as comparable; portfolio coverage/aggregation is disclosed; derived insights trace to versioned input and method.
+### 5.8 Community — Phase 4
 
-### 5.6 Company news intelligence
+Community posts and interaction follow Phases 1–2. Exact interaction and visibility scope require approval. Before public release, define posting rules, content reporting, moderation/removal, safe rendering, and accountable operations. Clearly distinguish user opinions from Aynox data and analysis.
 
-**Purpose:** Find relevant reporting and summarize a company’s coverage over a chosen period.
+### 5.9 Dashboard monitoring — Phase 2
 
-Ingest company news from Yahoo Finance or another founder-approved, licensed source. Filter by company/ticker and time window, map articles to canonical entities, deduplicate, and display headline, source, publication time, and link. Company report includes article count, coverage dates, themes, generated summary, sentiment distribution, and source links.
-
-Mark generated summaries and sentiment as analysis; show method/model version, coverage volume, and sparse/no-data conditions. Provide an error-reporting path. Do not reproduce full article text unless rights permit it. Ingestion must be idempotent, traceable, and versioned.
-
-### 5.7 ESG analysis
-
-**Purpose:** Add environmental, social, and governance context.
-
-For covered companies, display provider, as-of date, score scale/direction, environmental/social/governance values, methodology link, and coverage status. Portfolio view aggregates only covered tracked names and shows covered/total counts and an explicit aggregation method.
-
-Do not invent scores or convert missing values to zero. Distinguish third-party values from Aynox-derived metrics. If a normalized/composite score is created, disclose universe, weights, missing-data handling, and methodology version. Describe ESG information as context, not certification of sustainability or investment suitability.
-
-### 5.8 Community posts
-
-**Purpose:** Support user discussion around companies and market research.
-
-Authenticated users can publish text posts with optional supported company tags, read a chronological feed, and edit/delete their own posts. Comments, reactions, and attachments require founder scope approval. Before public launch, provide posting rules, abuse reporting, moderation review, removal/escalation, and safe content rendering. Clearly distinguish user opinion from verified data and Aynox analysis.
-
-### 5.9 Saved preferences
-
-Persist tracked symbols and basic in-product preferences. Email/push alerts and price/news notifications are future enhancements unless explicitly approved.
+Initial monitoring means a user-accessible dashboard with current/latest tracked-stock data and freshness labels. Notifications and advanced alerts are later enhancements unless approved separately.
 
 ## 6. Main user journeys
 
-### A. Start researching
+### A. Discover and research — Phase 1
+1. Search a supported ticker/company.
+2. Review identity, exchange/currency, quote, market status, and timestamp.
+3. Inspect historical prices and relevant news.
+4. Read structured report and linked sources.
+5. View a forecast only if its release gate is satisfied.
 
-1. User understands Aynox’s purpose and limitations on the landing page.
-2. User registers or signs in.
-3. User searches a company by ticker/name.
-4. User opens its profile and reviews quote freshness, history, news, sentiment, ESG coverage, and forecast availability.
-5. User adds it to the tracked portfolio.
+### B. Build and monitor a tracked portfolio — Phase 2
+1. Manually add supported stocks.
+2. See an explanation that tracking does not imply ownership or invested amounts.
+3. Review individual price returns and the equally weighted, daily rebalanced index.
+4. Review sector exposure, concentration, and supported diversification observations.
+5. Review news/sentiment and ESG with method and coverage disclosed.
 
-### B. Build and review a tracked portfolio
+### C. Controlled MVP pilot — Phase 3
+Evaluate the Phase 1–2 research and portfolio journeys with a limited cohort, gather task and trust feedback, and resolve material issues before prioritizing Phase 4 extensions.
 
-1. User manually adds several symbols.
-2. Portfolio explains that the list does not represent holdings or invested amounts.
-3. User views individual period price changes and collective indexed performance.
-4. User inspects sector concentration and data coverage.
-5. User opens individual news, ESG, sentiment, and forecast details.
-
-### C. Read a company news report
-
-1. User selects a company and time range.
-2. Report shows article count, source links, date range, and coverage status.
-3. User reviews themes and generated sentiment analysis.
-4. User opens original reporting or flags a mismatch/error.
-
-### D. Explore a forecast
-
-1. User chooses a ticker, historical window, and horizon.
-2. Aynox validates history and explains gaps.
-3. User views actual prices, future forecast, uncertainty, and as-of time.
-4. User reviews evaluation/baseline notes and limitations.
-
-### E. Participate in community
-
-1. Signed-in user opens the feed.
-2. User publishes a text post and optionally tags a company.
-3. Other users read and discuss using approved MVP interactions.
-4. Users can report content; moderators review and act.
+### D. Community — Phase 4
+1. Open the community after its release.
+2. Publish or interact within approved scope.
+3. Report content for moderator review.
 
 ## 7. Functional requirements and acceptance criteria
 
-Provider freshness limits, supported markets, and forecast quality thresholds must be approved before production readiness.
+FR IDs are stable design, implementation, and QA references. Phase 4 items do not block the Phase 1–2 experience or its Phase 3 controlled pilot.
 
-### Accounts/access
+### Identity and privacy — MVP foundation
 
-- **FR-01:** Users can register, sign in/out, and recover access. **Accept:** Valid/invalid/expired states are clear; private portfolio and write actions reject unauthenticated requests.
-- **FR-02:** User data is owner-scoped. **Accept:** Automated authorization tests demonstrate one account cannot read or mutate another account’s portfolio/profile/private data.
-- **FR-03:** Account deletion is supported. **Accept:** Product documents deletion completion and retention exceptions; deletion is verified end to end.
+- **FR-01:** Users register/sign in/out and recover access. **Accept:** Valid/invalid/expired states are clear; private data is authorization-protected.
+- **FR-02:** User data is owner-scoped. **Accept:** Automated checks prove one account cannot read or mutate another account’s tracked list or private profile.
+- **FR-03:** Account deletion and retention are defined. **Accept:** User-facing policy and system behavior match and are verified before pilot.
+- **FR-04:** Sensitive data is protected. **Accept:** Credentials/secrets do not appear in client code, URLs, logs, or analytics.
 
-### Company and market data
+### Discovery and market data — Phase 1
 
-- **FR-04:** Search returns supported canonical companies. **Accept:** Ticker/name search handles ambiguous, unsupported, and empty queries explicitly.
-- **FR-05:** Quote/history includes provenance and freshness. **Accept:** Each visible quote has currency and timestamp or explicit provider limitation; delayed/stale/unavailable states differ visually.
-- **FR-06:** Historical charts are understandable and accessible. **Accept:** Period, units, axes, and gaps are clear; a text/data-table alternative is available.
+- **FR-05:** Search resolves supported securities. **Accept:** Canonical identity, exchange, currency, support/partial status, and unsupported/ambiguous cases are explicit.
+- **FR-06:** Quotes include provenance and freshness. **Accept:** Provider, timestamp, currency, market status, and real-time, delayed, stale, or unavailable state are visible; real-time is claimed only when provider support and applicable entitlements permit it, and no numeric freshness promise is made before feasibility approval.
+- **FR-07:** Historical charts are accessible and understandable. **Accept:** Period, units, adjustment basis, and gaps are stated; a text/table alternative exists.
+- **FR-08:** Provider errors degrade safely. **Accept:** Bounded retries do not mislabel stale prices as current or substitute zero for missing data.
 
-### Tracked portfolio
+### Forecasting — Phase 1, gated
 
-- **FR-07:** Users can add/remove/revisit symbols. **Accept:** The list persists across sessions without requesting share count or purchase price.
-- **FR-08:** Individual price performance is shown. **Accept:** Period and comparison basis are stated; missing/stale data is flagged.
-- **FR-09:** Collective performance is shown. **Accept:** Method, base date, weighting/rebalancing, currency treatment, and included symbols appear; UI never calls it personal investment return.
-- **FR-10:** Sector exposure/concentration is shown. **Accept:** Weighting basis/classification is disclosed; unknown sectors are counted and visible.
-- **FR-11:** News/ESG rollups disclose coverage. **Accept:** Reports show article/company counts, window/as-of, aggregation method, and missing coverage.
-- **FR-12:** Diversification observations are data-supported. **Accept:** Correlation output shows window and observations; insufficient coverage returns an explicit insufficient-data state.
+- **FR-09:** Inputs are validated. **Accept:** Invalid ticker/range/horizon, insufficient history, and provider errors yield recoverable states.
+- **FR-10:** Forecasts expose uncertainty and provenance. **Accept:** Actual/forecast distinction, horizon, interval, model/version, and cut-off are visible.
+- **FR-11:** Forecast performance evidence is out of sample. **Accept:** Any displayed metric has reproducible chronological evaluation, baseline, horizon, data window, and limitations; otherwise no reliability claim is shown.
 
-### Forecasting and news
+### News and reports — Phase 1
 
-- **FR-13:** Forecast requests validate ticker, range, horizon, and input history. **Accept:** Invalid dates, unsupported horizons, insufficient history, and provider failures produce specific recoverable errors.
-- **FR-14:** Forecast view explains uncertainty and provenance. **Accept:** Actual vs forecast, interval, model/version, horizon, cut-off, and evaluation/baseline or “not available” are shown.
-- **FR-15:** Evaluation is reproducible and out of sample. **Accept:** Release evidence records chronological procedure, metrics, baseline, data cut-off, and limitations.
-- **FR-16:** News can be filtered by company and time. **Accept:** Each item has source/link/time/association; duplicates are removed within a report.
-- **FR-17:** Company report describes coverage and sentiment. **Accept:** Period, article count, analysis method/version, sentiment distribution, and sparse/no coverage are present.
-- **FR-18:** Summary attribution and rights are respected. **Accept:** Generated summaries are labeled and linked; full text is displayed only with permission.
+- **FR-12:** News is filtered and deduplicated. **Accept:** Each result has source, link, publication time, canonical company association, and selected time window; no/partial/stale states are explicit.
+- **FR-13:** Article and company sentiment are available. **Accept:** Report shows article-level output and company-level distribution, method/version, coverage, and evaluation evidence or limitations.
+- **FR-14:** Reports are source-grounded. **Accept:** Period/as-of, article count, themes, synthesis, source links, and coverage limits are displayed; generated analysis is labeled.
+- **FR-15:** News usage respects rights. **Accept:** Source access, storage, summaries, display, and retention follow approved terms.
 
-### ESG and community
+### Portfolio and ESG — Phase 2
 
-- **FR-19:** ESG panel explains score provenance. **Accept:** Provider, date, scale, pillar values, methodology, and unavailable coverage appear.
-- **FR-20:** ESG rollup is auditable. **Accept:** Coverage and aggregation are shown and derived values trace to versioned inputs.
-- **FR-21:** Users manage posts. **Accept:** Create/read/edit/delete permissions work; invalid/oversized text is rejected accessibly.
-- **FR-22:** Users report content and moderators act. **Accept:** Report target, reporter, timestamp, and status are recorded; authorized moderator actions are audited.
-- **FR-23:** Content is safe to render. **Accept:** Script/HTML payloads render inert; attachments, if approved, are constrained and validated.
+- **FR-16:** Users manage tracked stocks manually. **Accept:** Selection persists without asking for ownership, quantity, or purchase price.
+- **FR-17:** Individual price returns are visible. **Accept:** Period, price-return basis, source timestamp, and missing data are clear.
+- **FR-18:** Collective index follows Section 4. **Accept:** Deterministic tests verify equal-weighted local-currency constituent daily percentage returns, no FX conversion, daily rebalancing, compounding, and base 100; UI discloses it is not a common-currency return.
+- **FR-19:** Index semantics are clear. **Accept:** UI explains local trading currency, FX exclusion, dividend exclusion, daily rebalancing, and historical composition; it never calls the index a common-currency return, globally invested portfolio return, or personal return/P&L.
+- **FR-20:** Exposure/concentration is transparent. **Accept:** Equal-weight/count basis and unknown classifications are shown.
+- **FR-21:** Diversification observations are supported. **Accept:** Period, sample coverage, and method are shown; insufficient data returns an insufficient-data state.
+- **FR-22:** News/sentiment/ESG rollups disclose coverage. **Accept:** Included stocks, dates, counts, sources, and aggregation/method versions are visible.
+- **FR-23:** ESG comparisons are sourced. **Accept:** Provider, date, scale, methodology, pillar values, comparison context, and gaps appear; unsupported comparisons are suppressed.
+
+### Community — Phase 4
+
+- **FR-24:** Community behavior follows approved scope. **Accept:** Publishing, viewing, edit/delete, visibility, and interaction permissions are tested.
+- **FR-25:** Moderation exists before public release. **Accept:** Users can report; authorized moderators can review/action with audit record; content renders safely.
 
 ### Cross-cutting
 
-- **FR-24:** Data panels support loading, partial, empty, stale, and error states. **Accept:** Provider outages do not masquerade as valid zero values or collapse page layout.
-- **FR-25:** Core journeys work on mobile and keyboard. **Accept:** Search, tracking, reports, forecast navigation, and posting work at approved mobile widths without horizontal page scroll or keyboard traps.
+- **FR-26:** Data panels support loading, partial, empty, stale, and error states. **Accept:** State is distinguishable and missing data never looks like a valid zero.
+- **FR-27:** Phase 1–2 journeys are responsive and keyboard-accessible. **Accept:** Search, reports, forecast view, tracking, and dashboard work at approved mobile widths without clipping, horizontal page scrolling, or keyboard traps.
+- **FR-28:** User-facing outputs are traceable. **Accept:** Source, as-of time, transformation/method version, and generated status are available where relevant.
 
 ## 8. Non-functional requirements
 
-### Performance/resilience
+### Performance and resilience
+- Proposed target: p95 cached dashboard reads under 2 seconds and uncached provider-backed reads under 5 seconds, excluding model/report jobs. Workload and measurement conditions require approval.
+- Long-running work has bounded timeouts and progress/completion states.
+- Use bounded retries, provider-aware caching, visible freshness, and graceful degradation.
+- Run ingestion/analysis as managed work, not duplicated per web process.
+- Proposed pilot availability objective: 99.5% monthly for core service, excluding documented external-provider outages; approval and measurement definition remain open.
 
-- Proposed target: p95 cached dashboard reads under 2 seconds; uncached provider-backed requests under 5 seconds, excluding model jobs.
-- Show a loading state promptly; long jobs have progress or bounded timeout/retry behavior.
-- Use bounded retries, caching with visible freshness, provider circuit breaking, and graceful degradation.
-- Run ingestion/model jobs in managed workers rather than per-web-process startup threads.
-- Proposed pilot service objective: 99.5% monthly core-service availability, excluding documented third-party outages.
+### Security and privacy
+- Protect secrets; do not log credential values.
+- Use secure authentication/session handling, authorization, CSRF protections where appropriate, and rate limits.
+- Minimize personal data; define notice, retention/deletion, analytics, and third-party processing.
+- Restrict and audit administrative actions.
 
-### Security/privacy
-
-- Keep secrets in protected configuration/secrets management; never log secret values.
-- Use secure sessions, modern password hashing, authorization checks, CSRF protections for cookie-authenticated forms, and rate limits.
-- Minimize personal data; define consent/notice, retention, deletion, and third-party AI processing.
-- Restrict admin actions and audit sensitive operations.
-- Review uploads, content rendering, dependencies, and API abuse before launch.
-
-### Accessibility/responsiveness
-
-- Target WCAG 2.2 AA for core journeys, pending formal review.
-- Provide keyboard access, visible focus, semantic headings/labels, adequate contrast, and non-color status cues.
+### Accessibility and responsiveness
+- Target WCAG 2.2 AA for core journeys, subject to review.
+- Provide keyboard access, focus visibility, semantic structure, sufficient contrast, and non-color status cues.
 - Provide chart summaries/tables and reduced-motion support.
-- Support approved mobile, tablet, and desktop widths without overlap or clipped essential controls.
+- Support approved mobile/tablet/desktop sizes without overlap or clipped core controls.
 
-### Data quality/maintainability
-
-- Track provenance, timestamps, currency, coverage, transformations, and version identifiers for market/news/sentiment/ESG/model data.
-- Never silently replace missing values with zero or combine incompatible currency/period data.
-- Version APIs and validate inputs/outputs.
-- Isolate providers behind adapters; use structured logs/metrics without sensitive payloads.
-- Maintain automated unit, integration, authorization, end-to-end, and reproducible model-evaluation coverage.
+### Data quality and maintainability
+- Preserve source, timestamps, currency, exchange, market status, coverage, transformations, and versions.
+- Never silently replace missing values with zero or combine incompatible periods/currencies.
+- Version data/API contracts and validate inputs/outputs.
+- Use a provider-neutral market-data adapter and begin development with deterministic synthetic/mock market data. Twelve Data and Finnhub may be integrated later through adapters; final production provider selection remains open. Restricted development API data must not be shown to customers in production unless the applicable commercial rights permit it. Avoid sensitive payloads in operational logs.
+- Test calculations, authorization, ingestion, core journeys, and reproducible model evaluation.
 
 ## 9. Core data concepts
 
-- **User:** identity, authentication metadata, status, preferences.
-- **TrackedPortfolio:** owner, tracked security references, timestamps; no quantities or cost basis in MVP.
-- **Security:** canonical ticker/name, exchange, currency, classification and source.
-- **MarketObservation:** price/field, currency, provider, market and ingestion timestamps, adjustment basis.
-- **ForecastRun:** security, history window, horizon, model/version, cut-off, forecast/interval, evaluation metadata.
-- **NewsArticle:** provider identifier/URL, source/time, linked securities, association rationale, rights state, processing version.
-- **NewsAnalysis:** report/article reference, sentiment method/version, summary/themes, generated time.
-- **ESGObservation:** security, provider, score/pillars, scale, as-of date, methodology, coverage.
-- **CommunityPost/Report:** author, content, company tags, timestamps, moderation/report status.
+- User: identity, authentication metadata, status, preferences.
+- TrackedPortfolio: owner, tracked securities, effective membership start/end timestamps; no quantities/cost basis.
+- Security: canonical symbol/name, exchange, currency, classification/source.
+- MarketObservation: value, provider, market/ingestion timestamps, currency, market status, adjustment basis.
+- ForecastRun: security, history window, horizon, model/version, cut-off, forecast interval, evaluation metadata.
+- NewsArticle/NewsAnalysis: provider ID/URL, source/time, linked securities/rationale, rights state, sentiment/summary versions.
+- ESGObservation: security, source, scores/pillars, scale, date, methodology, coverage.
+- Phase 4 CommunityPost/Interaction/Report: author, content, tags, moderation/report state.
 
-Define retention/deletion for user data and cached/generated provider data before launch.
+Retention for user data, provider data, news-derived text, and generated analysis requires approval before release.
 
-## 10. Feature dependencies
+## 10. Dependencies
 
-1. Company search/profile depends on security master and supported-market scope.
-2. Live prices, history, performance, and forecasts depend on provider entitlements and historical data.
-3. Group analysis depends on tracked-list persistence, sector classification, price history, and approved formulas.
-4. News reports depend on licensed source, company/entity mapping, ingestion/deduplication, and approved summarization/sentiment.
-5. Sentiment rollups depend on ticker-level news mapping, time-window, and minimum-coverage policies.
-6. ESG insights depend on approved provider, methodology metadata, and coverage rules.
-7. Community depends on account identity, safe content handling, reporting, and moderation ownership.
-8. All insights depend on provenance, freshness, partial-data behavior, auditability, and monitoring.
+1. Discovery needs canonical security identity and progressive verified global coverage.
+2. Market data and forecasts need provider entitlements, each security’s exchange-specific trading calendar, local currency/adjustment semantics, and history; use verified split-adjusted prices with cash dividends excluded for the initial portfolio index.
+3. Forecast release needs time-ordered evaluation, baselines, and an approved gate.
+4. News reports need Yahoo Finance availability/rights, company matching, relevance/deduplication, sentiment validation, and attribution.
+5. Portfolio analysis needs persisted manual selection with effective timestamps, exchange-calendar-aligned verified price-return data, classifications, and explicit missing-price coverage/reweighting.
+6. Sentiment rollups need matching, time window, aggregation, and minimum-coverage rules.
+7. ESG needs verified source/methodology, comparison context, and coverage rules.
+8. Phase 4 community needs accounts, safe content handling, moderation, and operations.
+9. All analysis needs provenance, freshness, partial-data handling, versioning, and monitoring.
+10. Development begins with synthetic/mock market data behind a provider-neutral adapter. Production display requires appropriate commercial rights; restricted development API data is not production data.
 
-## 11. MVP and future enhancements
+## 11. Release sequence
 
-| Capability | MVP | Future |
+| Phase | Scope | Release condition |
 |---|---|---|
-| Tracked list | One manual list with individual and group analysis | Multiple named portfolios, import/export, alerts |
-| Portfolio | Indexed tracked-stock performance, sector/concentration, sentiment/ESG, supported diversification | Actual holdings, transaction returns, tax lots; brokerage sync only as a separate approved initiative |
-| Forecast | Historical-data model with uncertainty and validated evaluation | More models, scenarios, alternative/intraday data |
-| News | Company filtering, linked reports, sentiment/themes | More sources, multilingual coverage, real-time alerts |
-| ESG | Sourced company/pillar data and transparent aggregation | ESG history, custom screens, climate/impact analytics |
-| Community | Posts, company tags, basic moderation/reporting | Groups, DMs, reputation tools |
-| Chatbot | Excluded | Separate product proposal and evaluation |
-| Brokerage | Excluded | Separate strategy, consent, security, and compliance review |
-| Notifications | Saved in-product preferences | Email/push alerts |
+| 0 — Evidence, rights, and feasibility | Verify sources, exchange calendars, provider terms, forecast evidence, and pilot feasibility; establish mock-first provider-neutral data contract | Feasibility and rights documented; six-market proof of concept remains deferred |
+| 1 — Core investment research | Discovery, latest available market data (real-time where provider and entitlements support it), history, news filtering, structured reports/sentiment, gated forecasts | Sources/rights and data states verified; forecasts remain unavailable unless gate passes |
+| 2 — Portfolio intelligence | Manual tracking, individual/combined analysis, index, news/exposure/diversification, sourced ESG | Index verified and composition/coverage/method disclosed |
+| 3 — Controlled MVP pilot | Evaluate Phase 1–2 research and portfolio experience with a limited cohort | Pilot results and material issues reviewed before Phase 4 extensions are prioritized |
+| 4 — Extended platform | Community, expanded ESG, progressive market coverage, advanced alerts | Moderation, rights, owners, and pilot evidence approved |
 
-## 12. MVP release gates
-
-A controlled pilot may start only when:
-
-- Market/news/ESG sources, licenses, supported markets, currencies, and freshness commitments are approved.
-- Tracked-basket, sector, concentration, and diversification calculations are defined and disclosed.
-- Forecast evaluation is reproducible, out of sample, benchmarked, and meets a founder-approved quality gate—or forecasting is withheld.
-- News/ESG methodology, attribution, redistribution, retention, and coverage are approved.
-- Privacy, account deletion, moderation, incident response, and support owners are ready.
-- Core acceptance criteria pass automated tests and responsive/accessibility review.
-- No known critical/high security issue or material disclosure risk remains.
-- Qualified counsel reviews claims and obligations for the intended markets.
-
-## 13. Risks and mitigations
+## 12. Risks and mitigations
 
 | Risk | Mitigation |
 |---|---|
-| Market data delayed, incomplete, costly, or unlicensed | Approve provider/entitlements early; show freshness; use adapter boundary |
-| Tracked index mistaken for user return | Avoid holdings/return language; explain no quantities/cost basis; label method |
-| Weak forecasts overstated | Require holdout/backtest, baselines, uncertainty, versioning, and restrained language |
-| Incorrect news matching/sentiment | Show source links and coverage; evaluate on labeled examples; allow error reports |
-| ESG values stale/incomparable | Show provider/date/method/coverage; avoid unsupported rankings |
-| Community abuse/misinformation | Assign moderation owner, reporting, removal/escalation workflow |
-| Capstone assumptions/secrets/data carried forward | Treat StoCast as reference only; perform security/data-rights review |
+| Provider scope/terms/cost do not support global coverage | Introduce securities progressively; verify before marking supported |
+| Index mistaken for personal performance | Explain formula, dividend exclusion, manual selection, and no holdings |
+| Weak forecast evidence | Gate release; compare out-of-sample with baselines and show uncertainty |
+| News/sentiment/report errors | Preserve source links, evaluate, disclose coverage, allow error reports |
+| ESG is unverified/incomparable | Show source/date/method/scale and suppress invalid comparisons |
+| Community exceeds moderation capacity | Defer to Phase 4 with an accountable process |
+| Provider/model costs exceed value | Measure cost per workflow before broad rollout/pricing |
 
-## 14. Product measurement
+## 13. Product measurement
 
-Instrument privacy-conscious events for onboarding, company search/profile, add/remove symbol, portfolio view, news report open, forecast request/result, ESG detail view, post creation/report, and return sessions. Do not send passwords, secrets, raw private content, or unnecessary personal data to analytics.
+Instrument privacy-conscious events for onboarding, search/profile, reports, forecasts, tracked-list changes, portfolio views, ESG, and Phase 4 community actions. Do not send secrets, unnecessary personal data, or raw private content to analytics.
 
-During pilot, review activation, repeat use, source freshness, provider failures, forecast job success/evaluation, news and ESG coverage, user understanding/trust, and moderation response time.
+Measure activation, task completion, repeat use, freshness, provider failures, news relevance/coverage, sentiment coverage, forecast gate/evaluation, index comprehension, ESG coverage, and Phase 4 moderation response. Definitions and thresholds are open decisions.
 
-## 15. Founder decisions and assumptions
+## 14. Release gates
 
-Confirmed product direction is treated as fixed. Resolve these remaining decisions before committing dependent design and engineering work.
+Phase 1–2 core experience must meet these conditions before the Phase 3 controlled pilot:
+- Defined pilot workflow, supported securities, source rights, and freshness behavior.
+- Attributed news reports and evaluated sentiment with coverage states.
+- Verified Section 4 index math and clear composition/dividend semantics.
+- Forecast withheld or passing approved out-of-sample gate.
+- Verified ESG sources and disclosed comparisons.
+- Reviewed authentication, privacy/deletion, incident response, accessibility.
+- Automated/core acceptance checks complete; no open critical security/data-disclosure issue.
+- Qualified review of claims and data rights for intended markets.
 
-### P0: before data/API and UX commitments
+Phase 3 is the controlled pilot of Phases 1–2. Phase 4 has separate moderation/operations gates and follows review of pilot findings.
 
-1. **Market:** launch country/region, exchanges, asset universe, language, currencies, and supported tickers.
-2. **Market data:** production provider, licensing/redistribution, real-time vs delayed status, freshness SLA, and cost.
-3. **Tracked basket:** approve equal-weight normalized index with daily rebalancing or another formula; decide corporate actions, mixed currencies, holidays, missing data, and minimum coverage.
-4. **News:** confirm Yahoo Finance or alternative source, commercial/display rights, full-text access, summary permissions, refresh cadence, and retention.
-5. **ESG:** provider/dataset, scale, pillar interpretation, update cadence, and portfolio aggregation.
-6. **Forecast:** supported horizons/ranges, model, update policy, backtest procedure, release-quality threshold, and whether forecast ships in first pilot.
-7. **Community:** approve comments/reactions/attachments, public vs account-only access, moderator ownership, escalation and response targets.
-8. **Legal review:** launch jurisdiction and qualified review of data rights, privacy, generated content, community terms, and product claims.
+## 15. Governance and source context
 
-### P1: before pilot completion
+The [product decision register](aynox-product-decisions.md) records confirmed choices and open validation. The [startup roadmap](../aynox-startup-roadmap.md) describes sequencing. Neither implies implementation status.
 
-9. **Identity:** email/password, OAuth, verification, recovery, and admin MFA.
-10. **Privacy:** deletion completion, event/data retention, analytics opt-out, AI processor disclosure.
-11. **Success targets:** approve/revise Section 1 targets and define cohort/window.
-12. **Brand:** Aynox tone, visual identity, and explanation of StoCast’s historical relationship.
-13. **Notifications:** in-product only or any alert type needed in MVP.
-14. **Accessibility/platform:** WCAG target, supported browsers, devices, and minimum mobile width.
-
-### Provisional assumptions
-
-- MVP is a responsive web application; native mobile apps are out of scope.
-- Users manually curate symbols; no holdings, transactions, or brokerage access is required.
-- Equal-weight normalized basket is a proposal requiring founder approval.
-- News reports synthesize and link to articles rather than reproduce them by default.
-- Community requires accounts and moderation before public launch.
-- Forecast display can be deferred if the validation gate is unmet.
-- Provider adapters keep data-source decisions replaceable.
-
-## 16. Repository background and change control
-
-The Aynox repository contains README.md and docs/aynox-startup-roadmap.md, but no separate product specification was present when this PRD was prepared. The roadmap is a working draft whose early customer/feature hypotheses are superseded by the confirmed product direction in this PRD. Its evidence-led principles, model validation, rights review, security, and controlled-pilot guidance remain relevant.
-
-This PRD is the baseline for design and engineering planning. Scope changes involving excluded features, portfolio semantics, data rights, forecast claims, ESG methodology, or user-data handling require founder review and a recorded update. Work should reference the FR identifiers and document approved deviations with rationale.
+Capstone materials are historical evidence only; independently verify feature behavior, sources, and performance before using them to support Aynox claims. Changes to coverage, portfolio semantics, rights, forecast evidence, ESG methodology, community scope, or data handling require founder review and documentation.

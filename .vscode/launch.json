@@ -1,0 +1,20 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Aynox: Run and Open Browser",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "console": "integratedTerminal",
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "- Local:\\s+https?://localhost:(3000)\\b",
+        "uriFormat": "http://localhost:%s",
+        "killOnServerStop": true
+      }
+    }
+  ]
+}

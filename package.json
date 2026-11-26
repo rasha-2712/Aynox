@@ -1,0 +1,44 @@
+{
+  "name": "aynox",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": "^22.12.0 || >=24.11.0"
+  },
+  "scripts": {
+    "dev": "prisma generate && next dev",
+    "build": "prisma generate && next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "db:generate": "prisma generate",
+    "db:validate": "prisma validate",
+    "db:migrate": "prisma migrate dev"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "7.10.1",
+    "@prisma/client": "7.10.1",
+    "lucide-react": "1.79.0",
+    "next": "16.4.6",
+    "pg": "^8.16.3",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "recharts": "3.11.1"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.3.1",
+    "@tailwindcss/postcss": "4.3.5",
+    "@types/node": "^22.20.5",
+    "@types/pg": "^8.15.6",
+    "@types/react": "^19.3.1",
+    "@types/react-dom": "^19.3.0",
+    "eslint": "9.39.5",
+    "eslint-config-next": "16.4.6",
+    "prisma": "7.10.1",
+    "tailwindcss": "4.3.5",
+    "typescript": "5.9.3",
+    "vitest": "5.1.1"
+  }
+}

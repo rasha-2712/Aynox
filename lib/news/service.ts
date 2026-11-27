@@ -1,15 +1,12 @@
 import { demoSecurities } from "@/lib/data/demo-data";
+import { demoNewsArticles } from "@/lib/news/demo-news";
 import { deduplicateNews } from "@/lib/news/deduplicate";
-import { MockNewsProvider } from "@/lib/news/mock-news-provider";
 import { isValidNewsArticleId } from "@/lib/news/validation";
 import { demoSentimentClassifier, type SentimentClassifier } from "@/lib/news/sentiment";
 import type { NewsArticle, NewsArticleInput } from "@/types/news";
-import type { NewsProvider } from "@/lib/news/provider";
 
-let activeNewsProvider: NewsProvider = new MockNewsProvider();
 let activeSentimentClassifier: SentimentClassifier = demoSentimentClassifier;
 
-export function setNewsProvider(provider: NewsProvider) { activeNewsProvider = provider; }
 export function setSentimentClassifier(classifier: SentimentClassifier) { activeSentimentClassifier = classifier; }
 
 function articleRelevance(input: NewsArticleInput): NewsArticle["relevance"] {
@@ -44,12 +41,14 @@ export function analyzeNewsArticle(input: NewsArticleInput): NewsArticle {
 }
 
 export async function getNewsArticles(): Promise<NewsArticle[]> {
-  const inputs = await activeNewsProvider.listArticles();
+  // This UI service reads fixed in-memory demo fixtures. It is not a provider
+  // retrieval path and exposes no provider selector or registration hook.
+  const inputs = demoNewsArticles;
   const knownSecurityIds = new Set(demoSecurities.map((security) => security.id));
   const analyzed = inputs
     .filter((article) => isValidNewsArticleId((article as NewsArticleInput | null)?.id)
       && knownSecurityIds.has(article.securityId)
-      && (!activeNewsProvider.isDemo || article.contentKind === "demo"))
+      && article.contentKind === "demo")
     .map(analyzeNewsArticle);
   return deduplicateNews(analyzed);
 }

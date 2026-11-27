@@ -20,4 +20,8 @@ describe("searchSecurities", () => {
   it("filters by sector and country", () => {
     expect(searchSecurities(demoSecurities, { ...base, sector: "Semiconductors", country: "Netherlands" }).map((item) => item.symbol)).toEqual(["ASML"]);
   });
+
+  it("returns no results for an unmatched search so the no-results state can guide recovery", () => {
+    expect(searchSecurities(demoSecurities, { ...base, query: "no such company" })).toEqual([]);
+  });
 });

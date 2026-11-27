@@ -95,9 +95,11 @@ Phases 1 and 2 define the core research and portfolio experience; Phase 3 is the
 
 **Goal:** Evaluate the Phase 1 and Phase 2 experience with a limited user group and supported securities before community and other extended features are prioritized.
 
+The controlled pilot includes real authenticated user accounts and private, server-persisted tracked lists. Participants must authenticate to use private-watchlist features, and the server must authorize every read and mutation using verified identity so one user cannot access another user’s list. The synthetic browser-local demo remains a separate experience; its tracking is not private account data. Any future import must be explicit and user-approved. These are approved product requirements, not evidence that they are implemented.
+
 Recruit a pilot cohort across the confirmed audiences; choose a primary use case; define participant notice, support, success measures, and feedback cadence. Track activation, task completion, repeat use, trust/understanding, freshness, and data-quality issues. Keep forecasts unavailable if their gate is unmet.
 
-**Exit criteria:** Users complete core research/portfolio tasks; material trust, usability, privacy, and data issues have an approved mitigation; founders review results against approved measures.
+**Exit criteria:** Users complete core research/portfolio tasks; authentication and owner-scoped private-watchlist authorization pass security acceptance before pilot access; material trust, usability, privacy, and data issues have an approved mitigation; founders review results against approved measures.
 
 ### Phase 4 — Extended platform
 
@@ -113,7 +115,7 @@ Compare freemium, subscription, B2B, and other models against customer/pilot evi
 
 ### Phase 6 — Responsible launch readiness
 
-Choose hosting, authentication, storage, and observability based on approved architecture and team capacity. Establish protected secrets, least privilege, admin MFA, environment separation, dependency monitoring, rate limits, backups/restore, retention/deletion, incident response, and support ownership. Obtain qualified local review of data rights, product claims, and privacy obligations.
+Complete responsible-launch readiness for the approved account-backed pilot scope. Authentication, server-side persistence, and owner authorization are prerequisites for Phase 3 private-watchlist access and must not be deferred to this phase. Phase 6 resolves any remaining production hosting/authentication/storage choices and verifies operational controls: protected secrets, least privilege, admin MFA, environment separation, dependency monitoring, rate limits, backups/restore, retention/deletion, incident response, and support ownership. Obtain qualified local review of data rights, product claims, and privacy obligations. Provider, database host, MFA/session policy, registration, and retention choices remain open until approved.
 
 **Exit criteria:** No known critical security issue; restore and incident procedures demonstrated; data rights, claims, privacy, and pilot support approved.
 

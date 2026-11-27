@@ -1,6 +1,11 @@
+"use client";
+
+import { useLocale } from "@/components/locale-provider";
+
 export default function Loading() {
+  const { t } = useLocale();
   return (
-    <div className="animate-pulse space-y-5" aria-label="Loading Aynox">
+    <div className="animate-pulse space-y-5" aria-label={t("Loading Aynox")} role="status" aria-live="polite">
       <div className="h-3 w-32 rounded bg-line" />
       <div className="h-8 w-72 max-w-full rounded bg-line" />
       <div className="h-4 w-96 max-w-full rounded bg-line" />

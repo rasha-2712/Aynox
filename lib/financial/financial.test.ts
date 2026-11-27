@@ -264,7 +264,7 @@ describe("observation validation and synthetic fixtures", () => {
     expect(evaluateDataPermission([entitlement], { ...scope, market: "NYSE" }, "display", at, demoContext).allowed).toBe(false);
   });
 
-  it("supports explicit internal testing and production audience grants without implying real provider rights", () => {
+  it("supports internal testing but rejects caller-constructed production entitlement claims", () => {
     const base = createSyntheticDemoEntitlement({ providerId: "p", dataset: "d", market: "XNAS" });
     const internal = { ...base, contractRef: "test-internal-rights-fixture", dataEnvironment: "development-restricted" as const, authorizedEnvironments: ["development-restricted" as const], permittedAudience: "internal" as const };
     const internalScope = { providerId: "p", dataset: "d", market: "XNAS", contractRef: internal.contractRef, contractVersion: internal.contractVersion };
@@ -272,7 +272,8 @@ describe("observation validation and synthetic fixtures", () => {
     expect(evaluateDataPermission([internal], internalScope, "display", "2026-11-25T00:00:00.000Z", { environment: "production-licensed", audience: "named-customer" }).allowed).toBe(false);
     const hypotheticalCustomerGrant = { ...base, contractRef: "test-customer-rights-fixture", dataEnvironment: "production-licensed" as const, authorizedEnvironments: ["production-licensed" as const], permittedAudience: "named-customer" as const };
     const customerScope = { providerId: "p", dataset: "d", market: "XNAS", contractRef: hypotheticalCustomerGrant.contractRef, contractVersion: hypotheticalCustomerGrant.contractVersion };
-    expect(evaluateDataPermission([hypotheticalCustomerGrant], customerScope, "display", "2026-11-25T00:00:00.000Z", { environment: "production-licensed", audience: "named-customer" }).allowed).toBe(true);
+    expect(evaluateDataPermission([hypotheticalCustomerGrant], customerScope, "display", "2026-11-25T00:00:00.000Z", { environment: "production-licensed", audience: "named-customer" }))
+      .toMatchObject({ allowed: false, reason: "unauthenticated-entitlement" });
   });
 
   it("denies not-yet-effective and expired grants and evaluates conditional permissions", () => {

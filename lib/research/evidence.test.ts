@@ -1,18 +1,146 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { demoSecurities } from "@/lib/data/demo-data";
 import { createSyntheticDemoEntitlement } from "@/lib/financial/permissions";
 import { generateCompanyNewsReport } from "@/lib/news/report";
 import { MockFundamentalsProvider } from "@/lib/providers/mock-fundamentals-provider";
 import { getNewsArticles } from "@/lib/news/service";
-import { assembleResearchEvidence, excludeEvidenceIdCollisions } from "@/lib/research/evidence";
-import type { CompanyProfileRecord, FinancialStatementBundle, FundamentalsProvider, ProviderResult } from "@/types/financial";
+import { MockNewsProvider } from "@/lib/news/testing/mock-news-provider";
+import { assembleResearchEvidence as assembleResearchEvidenceCore, excludeEvidenceIdCollisions } from "@/lib/research/evidence";
+import { testResearchContext, withSignedSyntheticFundamentals, signedSyntheticNewsRecord, signedSyntheticNewsRetrievalPreflight } from "@/lib/research/testing/research-fixtures";
+import type { CompanyProfileRecord, DataEntitlement, FinancialDataProvenance, FinancialStatementBundle, FundamentalsProvider, ProviderResult, TechnicalEntitlementPreflight } from "@/types/financial";
 import type { NewsArticle } from "@/types/news";
+import type { ResearchEvidenceAssemblyOptions, ResearchEvidenceAssemblerDependencies } from "@/types/research";
 
 const collectedAt = "2026-11-26T12:00:00.000Z";
 const consumer = { environment: "synthetic" as const, audience: "demo-only" as const };
 const nvda = demoSecurities.find((item) => item.symbol === "NVDA")!;
 
+async function assembleResearchEvidence(securityId: string, options: Omit<ResearchEvidenceAssemblyOptions, "requestContext"> & {
+  requestContext?: ResearchEvidenceAssemblyOptions["requestContext"];
+  consumer?: { environment: string; audience: string };
+  newsEntitlements?: Record<string, DataEntitlement[]>;
+}, dependencies: ResearchEvidenceAssemblerDependencies = {}) {
+  const articles = options.newsArticles ?? [];
+  const newsEntitlementRecords = { ...options.newsEntitlementRecords };
+  const syntheticTestContext = options.consumer?.environment !== "production-licensed";
+  for (const article of articles) if (syntheticTestContext && article.contentKind === "demo" && !newsEntitlementRecords[article.id]) {
+    newsEntitlementRecords[article.id] = [signedSyntheticNewsRecord(article, demoSecurities.find((security) => security.id === securityId)?.exchange ?? "XNAS")];
+  }
+  const provider = dependencies.fundamentalsProvider;
+  const requestContext = options.requestContext ?? await testResearchContext(securityId);
+  const { consumer: ignoredConsumer, newsEntitlements: ignoredLegacyEntitlements, ...coreOptions } = options;
+  void ignoredConsumer;
+  void ignoredLegacyEntitlements;
+  return assembleResearchEvidenceCore(securityId, {
+    ...coreOptions,
+    requestContext,
+    newsEntitlementRecords
+  }, { ...dependencies,
+    fundamentalsProvider: provider && syntheticTestContext ? withSignedSyntheticFundamentals(provider) : provider,
+    ...(dependencies.loadNewsArticles && syntheticTestContext && !dependencies.newsRetrievalPreflight
+      ? { newsRetrievalPreflight: async () => ({ dataset: "synthetic-company-news", contractId: "aynox-synthetic-news-fixture", contractVersion: "1", retrievalScope: "dataset" as const,
+          record: signedSyntheticNewsRetrievalPreflight({ securityId, exchange: demoSecurities.find((security) => security.id === securityId)?.exchange ?? "XNAS" }) }) }
+      : {})
+  });
+}
+
 describe("research evidence assembly", () => {
+  it("does not invoke provider fetches when retrieval preflight is absent", async () => {
+    const base = new MockFundamentalsProvider();
+    const identity = { securityId: nvda.id, symbol: nvda.symbol, exchange: nvda.exchange, currency: nvda.currency };
+    const profile = vi.fn(() => base.getCompanyProfile(identity));
+    const statements = vi.fn(() => base.getFinancialStatements(identity));
+    const provider: FundamentalsProvider = { providerId: base.providerId, providerName: base.providerName, isDemo: true,
+      resolveSecurity: (value) => base.resolveSecurity(value), getCompanyProfile: profile, getFinancialStatements: statements };
+    const snapshot = await assembleResearchEvidenceCore(nvda.id, { requestContext: await testResearchContext(nvda.id), assembledAt: collectedAt, newsArticles: [] }, { fundamentalsProvider: provider, loadNewsArticles: async () => [] });
+    expect(profile).not.toHaveBeenCalled();
+    expect(statements).not.toHaveBeenCalled();
+    expect(snapshot.limitations.some((item) => item.code === "retrieval-preflight-denied")).toBe(true);
+  });
+
+  it("does not invoke an injected news loader without verified retrieval preflight", async () => {
+    const provider = withSignedSyntheticFundamentals(new MockFundamentalsProvider());
+    const newsProvider = new MockNewsProvider();
+    const listArticles = vi.spyOn(newsProvider, "listArticles");
+    const loader = vi.fn(async (authorization: Parameters<MockNewsProvider["listArticles"]>[0]): Promise<NewsArticle[]> => { await newsProvider.listArticles(authorization); return []; });
+    const snapshot = await assembleResearchEvidenceCore(nvda.id, { requestContext: await testResearchContext(nvda.id), assembledAt: collectedAt }, {
+      fundamentalsProvider: provider, loadNewsArticles: loader
+    });
+    expect(loader).not.toHaveBeenCalled();
+    expect(listArticles).not.toHaveBeenCalled();
+    expect(snapshot.limitations.some((item) => item.code === "news-retrieval-preflight-denied")).toBe(true);
+  });
+
+  it("invokes the synthetic provider only after valid signed preflight", async () => {
+    const provider = withSignedSyntheticFundamentals(new MockFundamentalsProvider());
+    const newsProvider = new MockNewsProvider();
+    const listArticles = vi.spyOn(newsProvider, "listArticles");
+    const loader = vi.fn(async (authorization: Parameters<MockNewsProvider["listArticles"]>[0]): Promise<NewsArticle[]> => { await newsProvider.listArticles(authorization); return []; });
+    const snapshot = await assembleResearchEvidenceCore(nvda.id, { requestContext: await testResearchContext(nvda.id), assembledAt: collectedAt }, {
+      fundamentalsProvider: provider, loadNewsArticles: loader,
+      newsRetrievalPreflight: async (identity) => ({
+        dataset: "synthetic-company-news", contractId: "aynox-synthetic-news-fixture", contractVersion: "1", retrievalScope: "dataset",
+        record: signedSyntheticNewsRetrievalPreflight(identity)
+      })
+    });
+    expect(loader).toHaveBeenCalledTimes(1);
+    expect(listArticles).toHaveBeenCalledTimes(1);
+    expect(snapshot.limitations.some((item) => item.code === "news-retrieval-preflight-denied")).toBe(false);
+  });
+
+  it.each(["expired", "malformed", "invalid-signature", "scope-mismatched", "source-record-scope"] as const)("does not invoke the news provider for %s preflight", async (failureCase) => {
+    const provider = withSignedSyntheticFundamentals(new MockFundamentalsProvider());
+    const newsProvider = new MockNewsProvider();
+    const listArticles = vi.spyOn(newsProvider, "listArticles");
+    const loader = vi.fn(async (authorization: Parameters<MockNewsProvider["listArticles"]>[0]): Promise<NewsArticle[]> => { await newsProvider.listArticles(authorization); return []; });
+    const result = await assembleResearchEvidenceCore(nvda.id, { requestContext: await testResearchContext(nvda.id), assembledAt: collectedAt }, {
+      fundamentalsProvider: provider, loadNewsArticles: loader,
+      newsRetrievalPreflight: async (identity) => {
+        const valid = signedSyntheticNewsRetrievalPreflight(identity, failureCase === "expired" ? "2025-01-01T00:00:00.000Z" : undefined);
+        const record = structuredClone(valid);
+        if (failureCase === "malformed") (record as unknown as { integrity: unknown }).integrity = null;
+        if (failureCase === "invalid-signature") record.integrity.signature = `${record.integrity.signature.slice(0, -1)}${record.integrity.signature.endsWith("A") ? "B" : "A"}`;
+        return {
+          dataset: failureCase === "scope-mismatched" ? "other-news-dataset" : "synthetic-company-news",
+          contractId: "aynox-synthetic-news-fixture", contractVersion: "1",
+          retrievalScope: failureCase === "source-record-scope" ? "source-record" as const : "dataset" as const, record
+        } as unknown as TechnicalEntitlementPreflight;
+      }
+    });
+    expect(loader).not.toHaveBeenCalled();
+    expect(listArticles).not.toHaveBeenCalled();
+    expect(result.limitations.some((item) => item.code === "news-retrieval-preflight-denied")).toBe(true);
+  });
+
+  it("does not expose an unrestricted provider registration path", async () => {
+    const provider = new MockNewsProvider();
+    const listArticles = vi.spyOn(provider, "listArticles");
+    const service = await import("@/lib/news/service");
+    expect("setNewsProvider" in service).toBe(false);
+    expect(getNewsArticles.length).toBe(0);
+    const articles: NewsArticle[] = await Reflect.apply(service.getNewsArticles, undefined, [{ providerId: "attacker-selected" }]);
+    expect(articles.every((article) => article.contentKind === "demo")).toBe(true);
+    expect(listArticles).not.toHaveBeenCalled();
+  });
+
+  it.each(["invalid-signature", "scope-mismatch", "expired"] as const)("does not fetch fundamentals when preflight is %s", async (failureCase) => {
+    const base = withSignedSyntheticFundamentals(new MockFundamentalsProvider(), undefined,
+      failureCase === "expired" ? "2026-11-25T00:00:00.000Z" : "2035-01-01T00:00:00.000Z");
+    const validPreflight = await base.getResearchRetrievalPreflight!({ securityId: nvda.id, symbol: nvda.symbol, exchange: nvda.exchange, currency: nvda.currency });
+    if (!validPreflight) throw new Error("Synthetic preflight fixture was unavailable.");
+    const forged = structuredClone(validPreflight);
+    if (failureCase === "invalid-signature") forged.record.integrity.signature = `${forged.record.integrity.signature.slice(0, -1)}${forged.record.integrity.signature.endsWith("A") ? "B" : "A"}`;
+    if (failureCase === "scope-mismatch") (forged as { dataset: string }).dataset = "other-dataset";
+    const profile = vi.fn(base.getCompanyProfile.bind(base));
+    const statements = vi.fn(base.getFinancialStatements.bind(base));
+    const provider: FundamentalsProvider = { ...base, getResearchRetrievalPreflight: async () => forged,
+      getCompanyProfile: profile, getFinancialStatements: statements };
+    const result = await assembleResearchEvidenceCore(nvda.id, { requestContext: await testResearchContext(nvda.id), assembledAt: collectedAt, newsArticles: [] }, { fundamentalsProvider: provider, loadNewsArticles: async () => [] });
+    expect(profile).not.toHaveBeenCalled();
+    expect(statements).not.toHaveBeenCalled();
+    expect(result.limitations.some((item) => item.code === "retrieval-preflight-denied")).toBe(true);
+  });
+
   it("assembles permitted synthetic fundamentals, calculated metrics and source-linked news", async () => {
     const articles = await getNewsArticles();
     const snapshot = await assembleResearchEvidence(nvda.id, { consumer, assembledAt: collectedAt, newsArticles: articles, newsCoverageStatus: "complete" }, { fundamentalsProvider: completeProvider() });
@@ -27,9 +155,10 @@ describe("research evidence assembly", () => {
     expect(snapshot.evidence.filter((item) => item.kind === "financial-observation").every((item) => item.sources[0].sourceKind === "synthetic")).toBe(true);
     const financial = snapshot.evidence.find((item) => item.kind === "financial-observation");
     if (financial) {
-      expect(financial.sources[0].permissions.retrieval.allowed).toBe(true);
-      expect(financial.sources[0].permissions["ai-processing"].allowed).toBe(true);
-      expect(financial.sources[0].permissions.redistribution.allowed).toBe(false);
+      const assessment = snapshot.permissionAssessments.find((entry) => entry.assessmentId === financial.permissionAssessmentIds[0]);
+      expect(assessment?.decisions.retrieval.allowed).toBe(true);
+      expect(assessment?.decisions["ai-processing"].allowed).toBe(true);
+      expect(assessment?.decisions.redistribution.allowed).toBe(false);
     }
     const metric = snapshot.evidence.find((item) => item.kind === "calculated-metric");
     expect(metric?.kind).toBe("calculated-metric");
@@ -186,35 +315,53 @@ describe("research evidence assembly", () => {
 
   it("requires retrieval and AI processing for article evidence and derivation for summaries independently", async () => {
     const sourceArticle = (await getNewsArticles()).find((item) => item.securityId === nvda.id)!;
-    const article: NewsArticle = { ...structuredClone(sourceArticle), id: "licensed-permission-check", contentKind: "licensed" };
+    const article: NewsArticle = { ...structuredClone(sourceArticle), id: "synthetic-permission-check", contentKind: "demo" };
     const operations = ["retrieval", "storage", "display", "derivation", "ai-processing", "retention", "redistribution"] as const;
     for (const operation of operations) {
-      const entitlement = developmentEntitlement(`rights-${operation}`, "rights-news", nvda.exchange);
-      entitlement.permissions[operation] = { state: "denied" };
+      const signed = signedSyntheticNewsRecord(article, nvda.exchange, operation);
       const snapshot = await assembleResearchEvidence(nvda.id, {
         consumer: { environment: "development-restricted", audience: "internal" }, assembledAt: collectedAt,
-        newsArticles: [article], newsEntitlements: { [article.id]: [entitlement] }
+        newsArticles: [article], newsEntitlementRecords: { [article.id]: [signed] }
       }, { fundamentalsProvider: new MockFundamentalsProvider() });
       const articleEvidence = snapshot.evidence.find((item) => item.kind === "company-news-article");
       const summary = snapshot.evidence.find((item) => item.kind === "company-news-summary");
-      if (operation === "retrieval" || operation === "ai-processing") {
+      if (operation === "retrieval" || operation === "ai-processing" || operation === "derivation") {
         expect(articleEvidence).toBeUndefined();
         expect(summary).toBeUndefined();
-      } else if (operation === "derivation") {
-        expect(articleEvidence).toBeDefined();
-        expect(summary).toBeUndefined();
-        expect(snapshot.limitations.some((item) => item.code === "news-summary-derivation-permission-denied")).toBe(true);
       } else {
         expect(articleEvidence).toBeDefined();
         expect(summary).toBeDefined();
         if (articleEvidence?.kind === "company-news-article") {
-          expect(articleEvidence.sources[0].permissions[operation].allowed).toBe(false);
-          for (const otherOperation of operations.filter((item) => item !== operation)) {
-            expect(articleEvidence.sources[0].permissions[otherOperation].allowed).toBe(true);
-          }
+          const assessment = snapshot.permissionAssessments.find((entry) => entry.assessmentId === articleEvidence.permissionAssessmentIds[0]);
+          expect(assessment?.decisions[operation].allowed).toBe(false);
+          expect(assessment && operations.filter((item) => item !== operation).every((other) => assessment.decisions[other].allowed === (other !== "redistribution"))).toBe(true);
         }
       }
     }
+  });
+
+  it("rejects unsigned, altered, wrong-security and wrong-source entitlement records at assembly", async () => {
+    const sourceArticle = (await getNewsArticles()).find((item) => item.securityId === nvda.id)!;
+    const article: NewsArticle = { ...structuredClone(sourceArticle), id: "scope-bound-news", contentKind: "demo" };
+    const valid = signedSyntheticNewsRecord(article, nvda.exchange);
+    const altered = structuredClone(valid);
+    altered.integrity.signature = `${altered.integrity.signature.slice(0, -1)}${altered.integrity.signature.endsWith("A") ? "B" : "A"}`;
+    const wrongSecurityArticle = { ...article, securityId: "US:XNAS:MSFT" };
+    const wrongSecurity = signedSyntheticNewsRecord(wrongSecurityArticle, nvda.exchange);
+    const wrongSource = signedSyntheticNewsRecord({ ...article, id: "different-source" }, nvda.exchange);
+    for (const records of [[], [altered], [wrongSecurity], [wrongSource]]) {
+      const snapshot = await assembleResearchEvidence(nvda.id, {
+        consumer, assembledAt: collectedAt, newsArticles: [article], newsEntitlementRecords: { [article.id]: records }
+      }, { fundamentalsProvider: new MockFundamentalsProvider() });
+      expect(snapshot.evidence.some((item) => item.kind === "company-news-article" && item.evidenceId === `news:${article.id}`)).toBe(false);
+    }
+  });
+
+  it("rejects cloned and cross-security request contexts", async () => {
+    const genuine = await testResearchContext(nvda.id);
+    await expect(assembleResearchEvidence(nvda.id, { consumer, requestContext: structuredClone(genuine), assembledAt: collectedAt })).rejects.toThrow("trusted request context");
+    const other = await testResearchContext("US:XNAS:MSFT");
+    await expect(assembleResearchEvidence(nvda.id, { consumer, requestContext: other, assembledAt: collectedAt })).rejects.toThrow("trusted request context");
   });
 
   it("fails closed when source and provider environments disagree with entitlements", async () => {
@@ -237,7 +384,7 @@ describe("research evidence assembly", () => {
     const developmentGrant = developmentEntitlement("verified-esg", "verified-esg-dataset", nvda.exchange);
     const verifiedCandidate = { ...candidate, id: "verified-esg-nvda", isIllustrative: false, source: researchSource(developmentGrant), sourceVerificationStatus: "verified" as const, methodologyVerificationStatus: "verified" as const };
     const verified = await assembleResearchEvidence(nvda.id, { consumer: { environment: "development-restricted", audience: "internal" }, assembledAt: collectedAt, newsArticles: [], esgCandidates: [verifiedCandidate] }, { fundamentalsProvider: new MockFundamentalsProvider() });
-    expect(verified.evidence.some((item) => item.kind === "esg-observation")).toBe(true);
+    expect(verified.evidence.some((item) => item.kind === "esg-observation")).toBe(false);
     for (const status of ["sourceVerificationStatus", "methodologyVerificationStatus"] as const) {
       const unverified = { ...verifiedCandidate, [status]: "unverified" as const };
       const excluded = await assembleResearchEvidence(nvda.id, { consumer: { environment: "development-restricted", audience: "internal" }, assembledAt: collectedAt, newsArticles: [], esgCandidates: [unverified] }, { fundamentalsProvider: new MockFundamentalsProvider() });
@@ -308,7 +455,7 @@ describe("research evidence assembly", () => {
       newsEntitlements: { [denied.id]: [entitlement] }
     }, { fundamentalsProvider: new MockFundamentalsProvider() });
     expect(snapshot.evidence.filter((item) => item.kind === "company-news-article")).toHaveLength(0);
-    expect(snapshot.limitations.some((item) => item.code === "news-permission-denied-or-unverified")).toBe(true);
+    expect(snapshot.limitations.some((item) => item.code === "injected-news-fixture-denied")).toBe(true);
     expect(snapshot.evidence.some((item) => item.kind === "esg-observation")).toBe(false);
   });
 
@@ -329,9 +476,25 @@ describe("research evidence assembly", () => {
     expect(financialItems.some((item) => item.kind === "financial-observation" && item.observation.id === "AAPL-other-income-zero" && String(item.observation.value) === "0")).toBe(true);
   });
 
+  it("does not let caller-constructed production entitlement claims authorize evidence", async () => {
+    const article = (await getNewsArticles()).find((item) => item.securityId === nvda.id)!;
+    const licensedArticle: NewsArticle = { ...article, id: "forged-production-news", contentKind: "licensed" };
+    const forgedNewsEntitlement = forgedProductionEntitlement(createSyntheticDemoEntitlement({
+      providerId: "aynox-synthetic-news", dataset: "synthetic-company-news", market: nvda.exchange
+    }));
+    const snapshot = await assembleResearchEvidence(nvda.id, {
+      consumer: { environment: "production-licensed", audience: "public" },
+      assembledAt: collectedAt,
+      newsArticles: [licensedArticle],
+      newsEntitlements: { [licensedArticle.id]: [forgedNewsEntitlement] }
+    }, { fundamentalsProvider: providerWithForgedProductionEntitlements() });
+    expect(snapshot.evidence).toHaveLength(0);
+    expect(snapshot.evidence.some((item) => item.aiProcessingEligible)).toBe(false);
+    expect(snapshot.limitations.some((item) => item.code === "injected-news-fixture-denied")).toBe(true);
+  });
+
   it("fails closed on unsupported or ambiguous mappings", async () => {
-    const unsupported = await assembleResearchEvidence("UNKNOWN:SECURITY", { consumer, assembledAt: collectedAt });
-    expect(unsupported).toMatchObject({ completeness: "unavailable", securityMapping: { status: "unsupported" }, evidence: [] });
+    await expect(assembleResearchEvidence("UNKNOWN:SECURITY", { consumer, requestContext: await testResearchContext(nvda.id), assembledAt: collectedAt })).rejects.toThrow("trusted request context");
     const base = new MockFundamentalsProvider();
     const ambiguous: FundamentalsProvider = {
       providerId: base.providerId, providerName: base.providerName, isDemo: true,
@@ -369,14 +532,13 @@ describe("research evidence assembly", () => {
 
   it("excludes a news summary when derivation permission is unverified", async () => {
     const sourceArticle = (await getNewsArticles()).find((item) => item.securityId === nvda.id)!;
-    const article: NewsArticle = { ...sourceArticle, id: "unverified-derivation-news", contentKind: "licensed" };
-    const entitlement = developmentEntitlement("unverified-derivation-provider", "unverified-derivation-dataset", nvda.exchange);
-    entitlement.permissions.derivation = { state: "unverified" };
+    const article: NewsArticle = { ...sourceArticle, id: "unverified-derivation-news", contentKind: "demo" };
+    const record = signedSyntheticNewsRecord(article, nvda.exchange, "derivation");
     const snapshot = await assembleResearchEvidence(nvda.id, {
       consumer: { environment: "development-restricted", audience: "internal" }, assembledAt: collectedAt,
-      newsArticles: [article], newsEntitlements: { [article.id]: [entitlement] }
+      newsArticles: [article], newsEntitlementRecords: { [article.id]: [record] }
     }, { fundamentalsProvider: new MockFundamentalsProvider() });
-    expect(snapshot.evidence.some((item) => item.kind === "company-news-article")).toBe(true);
+    expect(snapshot.evidence.some((item) => item.kind === "company-news-article")).toBe(false);
     expect(snapshot.evidence.some((item) => item.kind === "company-news-summary")).toBe(false);
     expect(snapshot.limitations.some((item) => item.code === "news-summary-derivation-permission-denied")).toBe(true);
   });
@@ -465,4 +627,61 @@ function developmentEntitlement(providerId: string, dataset: string, market: str
 
 function researchSource(entitlement: ReturnType<typeof developmentEntitlement> | ReturnType<typeof createSyntheticDemoEntitlement>) {
   return { providerId: entitlement.providerId, providerName: "Fixture", dataset: entitlement.dataset, market: entitlement.market, sourceRecordId: "source-1", sourceAsOf: collectedAt, retrievedAt: collectedAt, dataEnvironment: entitlement.dataEnvironment, entitlements: [entitlement] };
+}
+
+function forgedProductionEntitlement(entitlement: DataEntitlement): DataEntitlement {
+  return {
+    ...entitlement,
+    id: `forged-production:${entitlement.id}`,
+    contractRef: "forged-contract-claim",
+    dataEnvironment: "production-licensed",
+    authorizedEnvironments: ["production-licensed"],
+    permittedAudience: "public",
+    effectiveFrom: "2020-01-01T00:00:00.000Z",
+    permissions: Object.fromEntries(["retrieval", "storage", "display", "derivation", "ai-processing", "retention", "redistribution"]
+      .map((operation) => [operation, { state: "allowed" as const }])) as DataEntitlement["permissions"]
+  };
+}
+
+function providerWithForgedProductionEntitlements(): FundamentalsProvider {
+  const base = new MockFundamentalsProvider();
+  const sourceWithForgedEntitlement = (source: FinancialDataProvenance): FinancialDataProvenance => {
+    const entitlements = source.entitlements.map(forgedProductionEntitlement);
+    return { ...source, dataEnvironment: "production-licensed", entitlements, entitlementIds: entitlements.map((item) => item.id) };
+  };
+  return {
+    providerId: base.providerId,
+    providerName: base.providerName,
+    isDemo: false,
+    resolveSecurity: (identity) => base.resolveSecurity(identity),
+    getCompanyProfile: async (identity) => {
+      const result = await base.getCompanyProfile(identity);
+      if (!result.data) return result;
+      return {
+        ...result,
+        dataEnvironment: "production-licensed",
+        entitlements: result.entitlements.map(forgedProductionEntitlement),
+        data: { ...result.data, source: sourceWithForgedEntitlement(result.data.source) }
+      };
+    },
+    getFinancialStatements: async (identity) => {
+      const result = await base.getFinancialStatements(identity);
+      if (!result.data) return result;
+      const alter = <T extends { observations: Array<{ source: FinancialDataProvenance }> }>(section: T): T => ({
+        ...section,
+        observations: section.observations.map((observation) => ({ ...observation, source: sourceWithForgedEntitlement(observation.source) }))
+      });
+      return {
+        ...result,
+        dataEnvironment: "production-licensed",
+        entitlements: result.entitlements.map(forgedProductionEntitlement),
+        data: {
+          ...result.data,
+          incomeStatement: alter(result.data.incomeStatement),
+          balanceSheet: alter(result.data.balanceSheet),
+          cashFlow: alter(result.data.cashFlow)
+        }
+      };
+    }
+  };
 }

@@ -1,7 +1,8 @@
 import type {
-  DataOperation, DataPermissionScope, DataEnvironment, DataEntitlement, FinancialCalculationResult,
-  FinancialObservation, ReportingPeriod, IntendedAudience
+  DataOperation, DataEnvironment, DataEntitlement, FinancialCalculationResult,
+  FinancialObservation, ReportingPeriod, SecurityIdentity, TechnicalEntitlementPreflight, TechnicalEntitlementRecord, TechnicalEntitlementScope
 } from "@/types/financial";
+import type { TrustedResearchRequestContext } from "@/types/research-context";
 import type { CompanyNewsReport, NewsArticle, SentimentDistribution } from "@/types/news";
 
 export type DeepReadonly<T> = T extends (...args: never[]) => unknown ? T
@@ -41,15 +42,35 @@ export interface ResearchSourceProvenance {
   revisionStatus?: string;
   revisionId?: string;
   sourceKind: "synthetic" | "development-restricted" | "production-licensed";
-  permissionScope: DataPermissionScope;
-  permissions: Record<DataOperation, PermissionEvidence>;
-  entitledAudience: IntendedAudience | null;
 }
 
-export interface PermissionEvidence {
+export interface EntitlementVerificationReceipt {
+  receiptId: string;
+  record: TechnicalEntitlementRecord;
+  scope: TechnicalEntitlementScope;
+  verificationStatus: "verified";
+  verificationMethod: "ed25519";
+  issuerId: string;
+  keyId: string;
+  verifiedAt: string;
+  evaluatedAt: string;
+  effectiveFrom: string;
+  expiresAt: string;
+  legalApprovalStatus: "pending";
+}
+
+export interface EvidenceOperationDecision {
+  operation: DataOperation;
   allowed: boolean;
   reason: string;
-  entitlementId?: string;
+  receiptId: string | null;
+  evaluatedAt: string;
+}
+
+export interface EvidencePermissionAssessment {
+  assessmentId: string;
+  sourceScope: TechnicalEntitlementScope;
+  decisions: Record<DataOperation, EvidenceOperationDecision>;
 }
 
 export interface ResearchEvidenceBase {
@@ -61,6 +82,7 @@ export interface ResearchEvidenceBase {
   collectedAt: string;
   freshness: EvidenceFreshness;
   aiProcessingEligible: boolean;
+  permissionAssessmentIds: string[];
 }
 
 export interface CompanyProfileEvidence extends ResearchEvidenceBase {
@@ -121,6 +143,11 @@ export interface ResearchEvidenceSnapshot {
   subject: ResearchSubject;
   securityMapping: { status: "resolved" | "ambiguous" | "unsupported"; providerId: string; reason?: string };
   assembledAt: string;
+  contextBinding: {
+    requestId: string;
+    authorizedSecurityId: string;
+    digest: string;
+  };
   completeness: EvidenceCompleteness;
   freshness: EvidenceFreshness | "mixed";
   sections: {
@@ -131,6 +158,8 @@ export interface ResearchEvidenceSnapshot {
     esg: EvidenceSectionStatus;
   };
   evidence: ResearchEvidenceItem[];
+  entitlementReceipts: EntitlementVerificationReceipt[];
+  permissionAssessments: EvidencePermissionAssessment[];
   limitations: EvidenceLimitation[];
   sourceObservationIds: string[];
   calculationVersions: Array<{ formulaIdentifier: string; formulaVersion: string }>;
@@ -160,23 +189,28 @@ export interface ResearchSourceInput {
   retrievedAt: string;
   dataEnvironment: DataEnvironment;
   entitlements: DataEntitlement[];
+  technicalEntitlements?: TechnicalEntitlementRecord[];
+  expectedContract?: { contractId: string; contractVersion: string };
   revisionStatus?: string;
   revisionId?: string;
 }
 
 export interface ResearchEvidenceAssemblyOptions {
-  consumer: { environment: DataEnvironment; audience: IntendedAudience };
+  requestContext: TrustedResearchRequestContext;
   assembledAt?: string;
   /** Source policy injection; omitted means freshness is explicitly unknown. */
   freshnessEvaluator?: (sourceAsOf: string | null, assembledAt: string) => "current" | "stale" | "unknown";
   newsArticles?: NewsArticle[];
-  newsEntitlements?: Record<string, DataEntitlement[]>;
+  /** Raw signed declarations. Structural DataEntitlement objects are intentionally not accepted here. */
+  newsEntitlementRecords?: Record<string, TechnicalEntitlementRecord[]>;
   newsCoverageStatus?: "complete" | "partial" | "unavailable";
   esgCandidates?: VerifiedEsgEvidenceCandidate[];
 }
 
 export interface ResearchEvidenceAssemblerDependencies {
   fundamentalsProvider?: import("@/types/financial").FundamentalsProvider;
-  loadNewsArticles?: () => Promise<NewsArticle[]>;
+  /** External loaders must return no data unless this signed authorization is verified first. */
+  newsRetrievalPreflight?: (identity: SecurityIdentity) => Promise<TechnicalEntitlementPreflight | null>;
+  loadNewsArticles?: (authorization: import("@/types/news").VerifiedNewsRetrievalAuthorization) => Promise<NewsArticle[]>;
   makeSnapshotId?: () => string;
 }

@@ -12,6 +12,18 @@ export type NewsCategory = (typeof NEWS_CATEGORIES)[number];
 export type NewsSentimentLabel = "Positive" | "Negative" | "Neutral";
 export type SentimentAssessmentStatus = "classified" | "ambiguous" | "insufficient-content";
 
+/** Runtime-unforgeable, request-scoped authorization passed to server-side news providers. */
+export interface VerifiedNewsRetrievalAuthorization {
+  readonly providerId: string;
+  readonly dataset: string;
+  readonly market: string;
+  readonly securityId: string;
+  readonly contractId: string;
+  readonly contractVersion: string;
+  readonly retrievalScope: "dataset";
+  readonly requestId: string;
+}
+
 export interface NewsArticleInput {
   id: string;
   securityId: string;

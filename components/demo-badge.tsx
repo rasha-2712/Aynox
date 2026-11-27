@@ -1,3 +1,6 @@
+import { useLocale } from "@/components/locale-provider";
+
 export function DemoBadge({ children = "DEMO DATA" }: { children?: string }) {
-  return <span className="demo-pill" aria-label="Demonstration data"><span className="demo-dot" />{children}</span>;
+  const { t } = useLocale();
+  return <span className="demo-pill" aria-label={t("Demonstration data")}><span className="demo-dot" />{t(children)}</span>;
 }

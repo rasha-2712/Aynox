@@ -41,6 +41,67 @@ export interface DataEntitlement {
   retentionLimit?: string;
 }
 
+/** Provider-neutral, signed technical permission declaration. It is not evidence of legal approval. */
+export interface TechnicalEntitlementRecord {
+  recordId: string;
+  issuerId: string;
+  providerId: string;
+  dataset: string;
+  market: string;
+  securityId: string | null;
+  sourceRecordId: string | null;
+  contractId: string;
+  contractVersion: string;
+  environment: DataEnvironment;
+  audience: IntendedAudience;
+  allowedOperations: Partial<Record<DataOperation, OperationPermission>>;
+  effectiveFrom: string;
+  expiresAt: string;
+  issuedAt: string;
+  integrity: {
+    algorithm: "Ed25519";
+    keyId: string;
+    signature: string;
+  };
+}
+
+export interface TechnicalEntitlementScope {
+  providerId: string;
+  dataset: string;
+  market: string;
+  securityId: string | null;
+  sourceRecordId: string | null;
+  contractId: string;
+  contractVersion: string;
+  environment: DataEnvironment;
+  audience: IntendedAudience;
+}
+
+/** Signed entitlement resolved independently of protected provider response data. */
+export interface TechnicalEntitlementPreflight {
+  readonly dataset: string;
+  readonly contractId: string;
+  readonly contractVersion: string;
+  readonly retrievalScope: "dataset";
+  readonly record: TechnicalEntitlementRecord;
+}
+
+export interface VerifiedTechnicalEntitlement {
+  readonly record: Readonly<TechnicalEntitlementRecord>;
+  readonly verification: {
+    readonly status: "verified";
+    readonly method: "ed25519";
+    readonly issuerId: string;
+    readonly keyId: string;
+    readonly verifiedAt: string;
+  };
+  /** Independent legal/contractual approval is not configured by this technical verifier. */
+  readonly legalApproval: {
+    readonly status: "pending";
+    readonly approvalReference: null;
+  };
+}
+
 export interface DataPermissionScope {
   providerId: string;
   dataset: string;
@@ -70,6 +131,8 @@ export interface FinancialDataProvenance {
   retrievedAt: string;
   dataEnvironment: DataEnvironment;
   entitlements: DataEntitlement[];
+  /** Signed records for the research evidence path. Legacy declarations above are never research authorization. */
+  technicalEntitlements?: TechnicalEntitlementRecord[];
   revision: SourceRevision;
   entitlementIds: string[];
   /** For Aynox-derived values, preserves the exact source observation lineage. */
@@ -91,6 +154,7 @@ export interface UpstreamFinancialSource {
   dataEnvironment: DataEnvironment;
   revision: SourceRevision;
   entitlements: DataEntitlement[];
+  technicalEntitlements?: TechnicalEntitlementRecord[];
   entitlementIds: string[];
 }
 
@@ -320,6 +384,10 @@ export interface FundamentalsProvider {
   readonly providerId: string;
   readonly providerName: string;
   readonly isDemo: boolean;
+  /** Server-owned contract identity for research entitlement scope; absent means research evidence is denied. */
+  getResearchEntitlementContract?(): { readonly dataset: string; readonly contractId: string; readonly contractVersion: string; readonly retrievalScope: "dataset" | "source-record" } | null;
+  /** Must resolve signed dataset-level retrieval authorization without fetching protected response data. */
+  getResearchRetrievalPreflight?(identity: SecurityIdentity): Promise<TechnicalEntitlementPreflight | null>;
   resolveSecurity(identity: SecurityIdentity): SecurityMappingResolution;
   getCompanyProfile(identity: SecurityIdentity): Promise<ProviderResult<CompanyProfileRecord>>;
   getFinancialStatements(identity: SecurityIdentity): Promise<ProviderResult<FinancialStatementBundle>>;

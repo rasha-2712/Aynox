@@ -141,7 +141,7 @@ export function PortfolioProvider({ children }: { children: ReactNode }) {
     };
   }, [addSymbol, announce, isReady, removeSymbol, toggleSymbol, tracking.events]);
 
-  return <PortfolioContext.Provider value={value}>{children}<div className="fixed bottom-24 right-4 z-50 rounded-xl border border-line bg-white px-4 py-3 text-[11px] font-semibold text-ink shadow-lg md:bottom-5" role="status" aria-live="polite" hidden={!notice}>{notice}</div></PortfolioContext.Provider>;
+  return <PortfolioContext.Provider value={value}>{children}<div className="fixed bottom-24 end-4 z-50 rounded-xl border border-line bg-white px-4 py-3 text-[11px] font-semibold text-ink shadow-lg md:bottom-5" role="status" aria-live="polite" aria-atomic="true" hidden={!notice}>{notice}</div></PortfolioContext.Provider>;
 }
 
 export function useTrackedPortfolio() {

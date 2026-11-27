@@ -72,11 +72,11 @@ These are hypotheses, not results. Approve metric definitions, cohorts, and thre
 - Collective news/sentiment, sector exposure, concentration, supported diversification observations, and sourced ESG insights.
 - Dashboard-based monitoring; advanced alerts are not required initially.
 
-Phases 1 and 2 together comprise the initial MVP experience. Pilot release cut and supported securities depend on verified provider feasibility and open decisions. The approved six-market proof of concept remains deferred until the appropriate development stage and is not part of this initial scope.
+Phases 1 and 2 together comprise the initial MVP experience. The Phase 3 controlled pilot includes real authenticated accounts and private, server-persisted tracked lists; the identity and authorization foundation is a prerequisite to admitting pilot participants to private-watchlist functionality. The synthetic browser-local demo remains available separately and is not account data. Any import from that demo must be explicit and user-approved. Pilot release cut and supported securities depend on verified provider feasibility and remaining open decisions. The approved six-market proof of concept remains deferred until the appropriate development stage and is not part of this initial scope.
 
 ### Controlled MVP pilot: Phase 3
 
-Evaluate the Phase 1–2 research and portfolio experience with a limited user group and supported securities. Review pilot findings and material issues before prioritizing community and other extended features.
+Evaluate the Phase 1–2 research and portfolio experience with a limited user group and supported securities. Participants using private tracked lists must authenticate; each list is persisted server-side and every read or mutation is authorized using the user’s verified identity. The synthetic browser-local demo remains a separate experience. Review pilot findings and material issues before prioritizing community and other extended features.
 
 ### Extended platform: Phase 4
 
@@ -187,7 +187,9 @@ FR IDs are stable design, implementation, and QA references. Phase 4 items do no
 
 ### Identity and privacy — MVP foundation
 
-- **FR-01:** Users register/sign in/out and recover access. **Accept:** Valid/invalid/expired states are clear; private data is authorization-protected.
+The controlled Phase 3 pilot includes real user accounts and private, account-backed tracked lists. A visual-only sign-in flow does not satisfy this requirement: authentication, server-side persistence, and server-side ownership authorization must be implemented and accepted before private-watchlist pilot access. The synthetic browser-local demo remains separate; local tracking is not private account data, and any future import requires explicit user approval. These approved product requirements do not select an authentication provider or approve the database host, registration policy, MFA, session policy, or retention policy.
+
+- **FR-01:** Pilot users authenticate to use private account features; provide approved registration, sign-in/out, and recovery flows. **Accept:** Valid/invalid/expired states are clear; unauthenticated users cannot access private data; the server verifies identity for every private operation.
 - **FR-02:** User data is owner-scoped. **Accept:** Automated checks prove one account cannot read or mutate another account’s tracked list or private profile.
 - **FR-03:** Account deletion and retention are defined. **Accept:** User-facing policy and system behavior match and are verified before pilot.
 - **FR-04:** Sensitive data is protected. **Accept:** Credentials/secrets do not appear in client code, URLs, logs, or analytics.

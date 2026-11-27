@@ -1,7 +1,7 @@
+import "server-only";
 import { randomUUID } from "node:crypto";
 import { demoSecurities } from "@/lib/data/demo-data";
 import { calculateFinancialMetric } from "@/lib/financial/calculation-engine";
-import { createSyntheticDemoEntitlement, evaluateDataPermission } from "@/lib/financial/permissions";
 import { securityIdentityFromSecurity } from "@/lib/financial/security-mapping";
 import { validateCompanyProfileRecord, validateFinancialStatementBundle } from "@/lib/financial/validation";
 import { financialFormulaCatalogue } from "@/lib/financial/formula-catalogue";
@@ -10,11 +10,20 @@ import { getFundamentalsProvider } from "@/lib/providers";
 import { getNewsArticles } from "@/lib/news/service";
 import { generateCompanyNewsReport } from "@/lib/news/report";
 import { isValidNewsArticleId } from "@/lib/news/validation";
-import type { DataOperation, DataEntitlement, FinancialCalculationResult, FinancialDataProvenance, FinancialObservation, FundamentalsProvider, SecurityIdentity } from "@/types/financial";
+import type { DataOperation, FinancialCalculationResult, FinancialDataProvenance, FinancialObservation, FundamentalsProvider, SecurityIdentity } from "@/types/financial";
 import type { NewsArticle } from "@/types/news";
-import type { CalculatedMetricEvidence, DeepReadonly, EvidenceCompleteness, EvidenceFreshness, PermissionEvidence, ResearchEvidenceAssemblyOptions, ResearchEvidenceAssemblerDependencies, ResearchEvidenceItem, ResearchEvidenceSnapshot, ResearchSourceProvenance, ResearchSourceInput, ResearchSubject, VerifiedEsgEvidenceCandidate } from "@/types/research";
+import type { CalculatedMetricEvidence, DeepReadonly, EvidenceCompleteness, EvidenceFreshness, EvidencePermissionAssessment, EntitlementVerificationReceipt, ResearchEvidenceAssemblyOptions, ResearchEvidenceAssemblerDependencies, ResearchEvidenceItem, ResearchEvidenceSnapshot, ResearchSourceProvenance, ResearchSourceInput, ResearchSubject, VerifiedEsgEvidenceCandidate } from "@/types/research";
+import { evaluateResearchSourceEntitlement, createResearchContextBinding, verifyNewsRetrievalAuthorization, verifyResearchRetrievalPreflight } from "@/lib/research/evidence-permissions.server";
+import { validateTrustedResearchRequestContext } from "@/lib/research/request-context.server";
+import { isSyntheticEvidenceFixtureAllowed } from "@/lib/research/synthetic-evidence-policy.server";
 
-const OPERATIONS: DataOperation[] = ["retrieval", "storage", "display", "derivation", "ai-processing", "retention", "redistribution"];
+const trustedResearchEvidenceSnapshots = new WeakSet<object>();
+const assessmentForSource = new WeakMap<object, { assessment: EvidencePermissionAssessment; receipt: EntitlementVerificationReceipt | null; eligibleForAI: boolean }>();
+
+/** True only for immutable snapshots issued by this server-side evidence assembler. */
+export function isTrustedResearchEvidenceSnapshot(value: unknown): value is DeepReadonly<ResearchEvidenceSnapshot> {
+  return typeof value === "object" && value !== null && trustedResearchEvidenceSnapshots.has(value);
+}
 
 /** Deterministically assembles permitted, source-grounded evidence. It does not persist data or generate AI reports. */
 export async function assembleResearchEvidence(
@@ -22,6 +31,11 @@ export async function assembleResearchEvidence(
   options: ResearchEvidenceAssemblyOptions,
   dependencies: ResearchEvidenceAssemblerDependencies = {}
 ): Promise<DeepReadonly<ResearchEvidenceSnapshot>> {
+  if (!validateTrustedResearchRequestContext(options.requestContext).ok
+      || options.requestContext.authorizedSecurityId !== securityId) {
+    throw new TypeError("A trusted request context authorized for this security is required.");
+  }
+  const contextBinding = createResearchContextBinding(options.requestContext);
   const assembledAt = options.assembledAt ?? new Date().toISOString();
   const snapshotId = `research-snapshot:${(dependencies.makeSnapshotId ?? randomUUID)()}`;
   const security = demoSecurities.find((item) => item.id === securityId);
@@ -39,14 +53,39 @@ export async function assembleResearchEvidence(
 
   if (mapping.status !== "resolved") {
     limitations.push({ code: mapping.status === "ambiguous" ? "security-mapping-ambiguous" : "security-mapping-unsupported", message: mapping.reason, subjectSecurityId: securityId });
-    return immutableSnapshot({ snapshotId, schemaVersion: "1.0.0", subject, securityMapping: { status: mapping.status, providerId: provider.providerId, reason: mapping.reason }, assembledAt, completeness: "unavailable", freshness: "unknown", sections: sectionStatus, evidence, limitations, sourceObservationIds: [], calculationVersions: [] });
+    return immutableSnapshot({ snapshotId, schemaVersion: "1.0.0", subject, securityMapping: { status: mapping.status, providerId: provider.providerId, reason: mapping.reason }, assembledAt, contextBinding, completeness: "unavailable", freshness: "unknown", sections: sectionStatus, evidence, entitlementReceipts: [], permissionAssessments: [], limitations, sourceObservationIds: [], calculationVersions: [] });
   }
 
   const identity: SecurityIdentity = securityIdentityFromSecurity(security!);
+  const syntheticFixtureAllowed = isSyntheticEvidenceFixtureAllowed(options.requestContext);
+  const entitlementContract = provider.getResearchEntitlementContract?.() ?? null;
+  let preflight = null;
+  try { preflight = await provider.getResearchRetrievalPreflight?.(identity) ?? null; } catch { preflight = null; }
+  const preflightOk = verifyResearchRetrievalPreflight(preflight, provider.providerId, entitlementContract?.dataset ?? "", identity.exchange,
+    securityId, entitlementContract, options.requestContext);
+  if (!preflightOk) {
+    limitations.push({ code: "retrieval-preflight-denied", message: "Provider retrieval authorization was unavailable or did not match the trusted request scope; protected fundamentals were not fetched.", subjectSecurityId: securityId });
+  }
+  let newsRetrievalAuthorization: import("@/types/news").VerifiedNewsRetrievalAuthorization | null = null;
+  if (dependencies.loadNewsArticles) {
+    let newsPreflight = null;
+    try { newsPreflight = await dependencies.newsRetrievalPreflight?.(identity) ?? null; } catch { newsPreflight = null; }
+    newsRetrievalAuthorization = verifyNewsRetrievalAuthorization(newsPreflight, "aynox-synthetic-news", "synthetic-company-news", identity.exchange,
+      securityId, { contractId: "aynox-synthetic-news-fixture", contractVersion: "1", retrievalScope: "dataset" }, options.requestContext);
+    if (!newsRetrievalAuthorization) limitations.push({ code: "news-retrieval-preflight-denied", message: "News loader was not called because signed retrieval preflight was unavailable or mismatched.", subjectSecurityId: securityId });
+  }
+  const acceptedInjectedNews = options.newsArticles?.filter((article) => syntheticFixtureAllowed && article?.contentKind === "demo") ?? [];
+  if (options.newsArticles !== undefined && acceptedInjectedNews.length !== options.newsArticles.length) {
+    limitations.push({ code: "injected-news-fixture-denied", message: "Preloaded news is accepted only as a demo fixture under the explicit synthetic test policy.", subjectSecurityId: securityId });
+  }
   const [profileResult, statementResult, loadedNews] = await Promise.all([
-    provider.getCompanyProfile(identity).catch(() => null),
-    provider.getFinancialStatements(identity).catch(() => null),
-    options.newsArticles ? Promise.resolve(options.newsArticles) : (dependencies.loadNewsArticles ?? getNewsArticles)().catch(() => [])
+    preflightOk ? provider.getCompanyProfile(identity).catch(() => null) : Promise.resolve(null),
+    preflightOk ? provider.getFinancialStatements(identity).catch(() => null) : Promise.resolve(null),
+    options.newsArticles !== undefined
+      ? Promise.resolve(acceptedInjectedNews)
+      : dependencies.loadNewsArticles
+        ? (newsRetrievalAuthorization && syntheticFixtureAllowed ? dependencies.loadNewsArticles(newsRetrievalAuthorization).catch(() => []) : Promise.resolve([]))
+        : (syntheticFixtureAllowed ? getNewsArticles().catch(() => []) : Promise.resolve([]))
   ]);
 
   const eligibleObservations: FinancialObservation[] = [];
@@ -70,7 +109,7 @@ export async function assembleResearchEvidence(
     const envelopeEligible = profile.source.providerId === profileResult.provider.id
       && profileResult.provider.id === provider.providerId
       && profileEnvironmentMatches
-      && sourceEntitlementsEligible(profileResult.entitlements, profile.source, assembledAt, options.consumer, profileResult.dataEnvironment);
+      && sourceEntitlementsEligible(profile.source, provider, securityId, options.requestContext, profileResult.dataEnvironment);
     if (!profileEnvironmentMatches || profileResult.dataEnvironment !== profile.source.dataEnvironment
         || profile.source.entitlements.some((entitlement) => entitlement.dataEnvironment !== profile.source.dataEnvironment)) {
       limitations.push({ code: "source-environment-mismatch", message: "Company profile provider response, provenance and permission environments disagree; profile facts were excluded.", subjectSecurityId: securityId, sourceId: profile.source.sourceRecordId });
@@ -79,9 +118,9 @@ export async function assembleResearchEvidence(
       if (duplicateProfileFields.has(fact.providerField)) continue;
       if (fact.value === null || !envelopeEligible) continue;
       const evidenceId = `profile:${profile.source.providerId}:${profile.source.sourceRecordId}:${fact.providerField}`;
-      const source = sourceFromFinancialProvenance(profile.source, assembledAt, options.consumer);
+      const source = sourceFromFinancialProvenance(profile.source, assembledAt, options.requestContext, provider, securityId);
       if (!isSourceEligible(source)) continue;
-      evidence.push({ evidenceId, kind: "company-profile", subjectSecurityId: securityId, sources: [source], sourceAsOf: fact.asOf ?? profile.source.asOf, collectedAt: assembledAt, freshness: freshnessFor(fact.asOf ?? profile.source.asOf, assembledAt, options), aiProcessingEligible: true, field: fact.field, value: fact.value, providerField: fact.providerField });
+      evidence.push({ evidenceId, kind: "company-profile", subjectSecurityId: securityId, sources: [source], permissionAssessmentIds: permissionIds([source]), sourceAsOf: fact.asOf ?? profile.source.asOf, collectedAt: assembledAt, freshness: freshnessFor(fact.asOf ?? profile.source.asOf, assembledAt, options), aiProcessingEligible: true, field: fact.field, value: fact.value, providerField: fact.providerField });
     }
     for (const providerField of duplicateProfileFields) limitations.push({ code: "duplicate-profile-field-id", message: `Company profile field ${providerField} is duplicated; ambiguous facts were excluded.`, subjectSecurityId: securityId, sourceId: profile.source.sourceRecordId });
     const profileCount = evidence.filter((item) => item.kind === "company-profile").length;
@@ -118,13 +157,13 @@ export async function assembleResearchEvidence(
       }
       if (observation.securityId !== securityId || !providerEnvelopeValid
           || observation.source.providerId !== statementResult.provider.id
-          || !sourceEntitlementsEligible(statementResult.entitlements, observation.source, assembledAt, options.consumer, statementResult.dataEnvironment)) continue;
-      const source = sourceFromFinancialProvenance(observation.source, assembledAt, options.consumer);
+          || !sourceEntitlementsEligible(observation.source, provider, securityId, options.requestContext, statementResult.dataEnvironment)) continue;
+      const source = sourceFromFinancialProvenance(observation.source, assembledAt, options.requestContext, provider, securityId);
       if (!isSourceEligible(source)) continue;
       const evidenceId = `financial:${observation.source.providerId}:${observation.id}`;
       eligibleObservations.push(observation);
       observationEvidenceIds.set(observation.id, evidenceId);
-      evidence.push({ evidenceId, kind: "financial-observation", subjectSecurityId: securityId, sources: [source], sourceAsOf: observation.source.asOf, collectedAt: assembledAt, freshness: freshnessFor(observation.source.asOf, assembledAt, options), aiProcessingEligible: true, observation, reportingPeriod: observation.period });
+      evidence.push({ evidenceId, kind: "financial-observation", subjectSecurityId: securityId, sources: [source], permissionAssessmentIds: permissionIds([source]), sourceAsOf: observation.source.asOf, collectedAt: assembledAt, freshness: freshnessFor(observation.source.asOf, assembledAt, options), aiProcessingEligible: true, observation, reportingPeriod: observation.period });
     }
     const allSectionsComplete = [statementResult.data.incomeStatement, statementResult.data.balanceSheet, statementResult.data.cashFlow].every((section) => section.status === "complete");
     sectionStatus.financialStatements = eligibleObservations.length
@@ -149,12 +188,12 @@ export async function assembleResearchEvidence(
       continue;
     }
     const inputObservations = result.inputObservationIds.map((id) => eligibleObservations.find((item) => item.id === id)).filter((item): item is FinancialObservation => Boolean(item));
-    const sources = uniqueSources(inputObservations.map((item) => sourceFromFinancialProvenance(item.source, assembledAt, options.consumer)));
+    const sources = uniqueSources(inputObservations.map((item) => sourceFromFinancialProvenance(item.source, assembledAt, options.requestContext, provider, securityId)));
     const metric: CalculatedMetricEvidence = {
       evidenceId: `calculation:${result.id}`, kind: "calculated-metric", subjectSecurityId: securityId, sources,
       sourceAsOf: minDate(sources.map((source) => source.sourceAsOf)), collectedAt: assembledAt,
       freshness: combinedFreshness(sources.map((source) => freshnessFor(source.sourceAsOf, assembledAt, options))),
-      aiProcessingEligible: sources.every(isSourceEligible), calculation: result, inputEvidenceIds,
+      aiProcessingEligible: sources.every((source) => isSourceEligible(source) && sourceOperationAllowed(source, "derivation")), permissionAssessmentIds: permissionIds(sources), calculation: result, inputEvidenceIds,
       formulaIdentifier: result.formulaIdentifier, formulaVersion: result.formulaVersion
     };
     if (metric.aiProcessingEligible) evidence.push(metric);
@@ -168,8 +207,13 @@ export async function assembleResearchEvidence(
   }
 
   const rawCompanyArticles = loadedNews.filter((article) => article && typeof article === "object" && article.securityId === securityId);
-  const validIdArticles = rawCompanyArticles.filter((article) => isValidNewsArticleId((article as NewsArticle | null)?.id));
-  rawCompanyArticles.filter((candidate) => !isValidNewsArticleId((candidate as NewsArticle | null)?.id)).forEach(() => {
+  const nonDemoArticles = rawCompanyArticles.filter((article) => article.contentKind !== "demo");
+  if (nonDemoArticles.length) {
+    limitations.push({ code: "news-content-not-authenticated", message: "Non-demo news content was excluded; retrieval entitlement does not authenticate article content.", subjectSecurityId: securityId });
+  }
+  const demoCompanyArticles = rawCompanyArticles.filter((article) => article.contentKind === "demo");
+  const validIdArticles = demoCompanyArticles.filter((article) => isValidNewsArticleId((article as NewsArticle | null)?.id));
+  demoCompanyArticles.filter((candidate) => !isValidNewsArticleId((candidate as NewsArticle | null)?.id)).forEach(() => {
     limitations.push({ code: "news-article-id-invalid", message: "A news article was excluded because its identifier is missing or malformed.", subjectSecurityId: securityId });
   });
   const duplicateArticleIds = duplicateValues(validIdArticles.map((article) => article.id));
@@ -185,16 +229,14 @@ export async function assembleResearchEvidence(
       limitations.push({ code: "news-sentiment-invalid", message: "A news article was excluded because its sentiment label, confidence or explanatory metadata is invalid.", subjectSecurityId: securityId, sourceId: article.id });
       continue;
     }
-    const entitlements = article.contentKind === "demo"
-      ? [createSyntheticDemoEntitlement({ providerId: "aynox-synthetic-news", dataset: "synthetic-company-news", market: identity.exchange })]
-      : options.newsEntitlements?.[article.id] ?? [];
-    const source = sourceFromInput(newsSource(article, identity.exchange, entitlements, assembledAt), assembledAt, options.consumer);
+    const source = sourceFromInput(newsSource(article, identity.exchange, assembledAt, options.newsEntitlementRecords?.[article.id]), assembledAt, options.requestContext, undefined, securityId);
     if (!isSourceEligible(source)) {
       limitations.push({ code: "news-permission-denied-or-unverified", message: "A news item was excluded because retrieval or AI-processing permission is missing, denied, or unverified.", subjectSecurityId: securityId, sourceId: article.id });
       continue;
     }
     eligibleArticles.push(article);
-    evidence.push({ evidenceId: `news:${article.id}`, kind: "company-news-article", subjectSecurityId: securityId, sources: [source], sourceAsOf: article.publishedAt, collectedAt: assembledAt, freshness: freshnessFor(article.publishedAt, assembledAt, options), aiProcessingEligible: true, article, sentiment: article.sentiment, articleDate: article.publishedAt });
+    if (!sourceOperationAllowed(source, "derivation")) continue;
+    evidence.push({ evidenceId: `news:${article.id}`, kind: "company-news-article", subjectSecurityId: securityId, sources: [source], permissionAssessmentIds: permissionIds([source]), sourceAsOf: article.publishedAt, collectedAt: assembledAt, freshness: freshnessFor(article.publishedAt, assembledAt, options), aiProcessingEligible: true, article, sentiment: article.sentiment, articleDate: article.publishedAt });
   }
   const newsCoverageStatus = options.newsCoverageStatus ?? "partial";
   sectionStatus.news = eligibleArticles.length
@@ -204,11 +246,11 @@ export async function assembleResearchEvidence(
     limitations.push({ code: "news-coverage-limited", message: "News coverage is a partial or synthetic sample and may not represent all company news.", subjectSecurityId: securityId });
   }
   if (eligibleArticles.length) {
-    const summarySources = uniqueNewsSources(eligibleArticles, identity.exchange, options, assembledAt).map((input) => sourceFromInput(input, assembledAt, options.consumer));
+    const summarySources = uniqueNewsSources(eligibleArticles, identity.exchange, options, assembledAt).map((input) => sourceFromInput(input, assembledAt, options.requestContext, undefined, securityId));
     const summaryId = eligibleArticles.map((article) => article.id).sort().join("|");
-    if (summarySources.every((source) => isSourceEligible(source) && source.permissions.derivation.allowed)) {
+    if (summarySources.every((source) => isSourceEligible(source) && sourceOperationAllowed(source, "derivation"))) {
       const newsReport = generateCompanyNewsReport(security!, eligibleArticles);
-      evidence.push({ evidenceId: `news-summary:${securityId}:${summaryId}`, kind: "company-news-summary", subjectSecurityId: securityId, sources: summarySources, sourceAsOf: minDate(summarySources.map((source) => source.sourceAsOf)), collectedAt: assembledAt, freshness: combinedFreshness(summarySources.map((source) => freshnessFor(source.sourceAsOf, assembledAt, options))), aiProcessingEligible: summarySources.every(isSourceEligible), report: newsReport, sentiment: newsReport.sentimentDistribution });
+      evidence.push({ evidenceId: `news-summary:${securityId}:${summaryId}`, kind: "company-news-summary", subjectSecurityId: securityId, sources: summarySources, permissionAssessmentIds: permissionIds(summarySources), sourceAsOf: minDate(summarySources.map((source) => source.sourceAsOf)), collectedAt: assembledAt, freshness: combinedFreshness(summarySources.map((source) => freshnessFor(source.sourceAsOf, assembledAt, options))), aiProcessingEligible: summarySources.every((source) => isSourceEligible(source) && sourceOperationAllowed(source, "derivation")), report: newsReport, sentiment: newsReport.sentimentDistribution });
     } else {
       limitations.push({ code: "news-summary-derivation-permission-denied", message: "The company news summary was excluded because derivation permission is denied, unverified or out of scope for at least one source article.", subjectSecurityId: securityId });
     }
@@ -224,9 +266,9 @@ export async function assembleResearchEvidence(
       continue;
     }
     if (!isVerifiedEsgCandidate(candidate)) continue;
-    const source = sourceFromInput(candidate.source, assembledAt, options.consumer);
+    const source = sourceFromInput(candidate.source, assembledAt, options.requestContext);
     if (!isSourceEligible(source) || !isValidTimestamp(candidate.sourceAsOf)) continue;
-    evidence.push({ evidenceId: `esg:${candidate.source.providerId}:${candidate.id}`, kind: "esg-observation", subjectSecurityId: securityId, sources: [source], sourceAsOf: candidate.sourceAsOf, collectedAt: assembledAt, freshness: freshnessFor(candidate.sourceAsOf, assembledAt, options), aiProcessingEligible: true, score: candidate.score, label: candidate.label, methodology: candidate.methodology, verificationStatus: "verified" });
+    evidence.push({ evidenceId: `esg:${candidate.source.providerId}:${candidate.id}`, kind: "esg-observation", subjectSecurityId: securityId, sources: [source], permissionAssessmentIds: permissionIds([source]), sourceAsOf: candidate.sourceAsOf, collectedAt: assembledAt, freshness: freshnessFor(candidate.sourceAsOf, assembledAt, options), aiProcessingEligible: true, score: candidate.score, label: candidate.label, methodology: candidate.methodology, verificationStatus: "verified" });
     eligibleEsgCount += 1;
   }
   for (const candidateId of duplicateEsgIds) limitations.push({ code: "duplicate-esg-candidate-id", message: `ESG candidate ID ${candidateId} is duplicated; ambiguous candidates were excluded.`, subjectSecurityId: securityId, sourceId: candidateId });
@@ -249,10 +291,12 @@ export async function assembleResearchEvidence(
     });
   const includedObservationIds = new Set(uniqueEvidence.filter((item) => item.kind === "financial-observation").map((item) => item.observation.id));
   if (sectionStatus.calculatedMetrics === "complete" && !uniqueEvidence.some((item) => item.kind === "calculated-metric")) sectionStatus.calculatedMetrics = "unavailable";
+  const sources = uniqueSources(uniqueEvidence.flatMap((item) => item.sources));
+  const evaluations = sources.map((source) => assessmentForSource.get(source)).filter((value): value is NonNullable<typeof value> => Boolean(value));
   const snapshot = makeSnapshot({
-    snapshotId, schemaVersion: "1.0.0", subject, securityMapping: { status: "resolved", providerId: provider.providerId }, assembledAt,
+    snapshotId, schemaVersion: "1.0.0", subject, securityMapping: { status: "resolved", providerId: provider.providerId }, assembledAt, contextBinding,
     completeness: determineCompleteness(sectionStatus, uniqueEvidence), freshness: combinedFreshness(uniqueEvidence.map((item) => item.freshness)),
-    sections: sectionStatus, evidence: uniqueEvidence, limitations, sourceObservationIds: eligibleObservations.filter((item) => includedObservationIds.has(item.id)).map((item) => item.id),
+    sections: sectionStatus, evidence: uniqueEvidence, entitlementReceipts: [...new Map(evaluations.flatMap((item) => item.receipt ? [[item.receipt.receiptId, item.receipt] as const] : [])).values()], permissionAssessments: evaluations.map((item) => item.assessment), limitations, sourceObservationIds: eligibleObservations.filter((item) => includedObservationIds.has(item.id)).map((item) => item.id),
     calculationVersions: uniqueEvidence.filter((item): item is CalculatedMetricEvidence => item.kind === "calculated-metric")
       .map((item) => ({ formulaIdentifier: item.formulaIdentifier, formulaVersion: item.formulaVersion }))
   });
@@ -260,7 +304,7 @@ export async function assembleResearchEvidence(
 }
 
 function collectCalculations(securityId: string, observations: FinancialObservation[], options: ResearchEvidenceAssemblyOptions, assembledAt: string): FinancialCalculationResult[] {
-  const context = { consumer: options.consumer, calculatedAt: assembledAt };
+  const context = { consumer: { environment: "synthetic" as const, audience: "demo-only" as const }, calculatedAt: assembledAt };
   const results: FinancialCalculationResult[] = [];
   for (const formula of financialFormulaCatalogue) {
     if (formula.implementationStatus !== "implemented-provisional") continue;
@@ -295,46 +339,59 @@ function candidateInputSets(metricId: string, groups: FinancialObservation[][]):
   return sets;
 }
 
-function sourceFromFinancialProvenance(source: FinancialDataProvenance, at: string, consumer: ResearchEvidenceAssemblyOptions["consumer"]): ResearchSourceProvenance {
+function sourceFromFinancialProvenance(source: FinancialDataProvenance, at: string, context: ResearchEvidenceAssemblyOptions["requestContext"], provider: FundamentalsProvider, securityId: string): ResearchSourceProvenance {
   return sourceFromInput({ providerId: source.providerId, providerName: source.providerName, dataset: source.dataset, market: source.market,
     sourceRecordId: source.sourceRecordId, sourceUrl: source.sourceUrl, sourceAsOf: source.asOf, retrievedAt: source.retrievedAt,
-    dataEnvironment: source.dataEnvironment, entitlements: source.entitlements, revisionStatus: source.revision.status, revisionId: source.revision.revisionId }, at, consumer);
+    dataEnvironment: source.dataEnvironment, entitlements: source.entitlements, technicalEntitlements: source.technicalEntitlements,
+    expectedContract: provider.getResearchEntitlementContract?.() ?? undefined, revisionStatus: source.revision.status, revisionId: source.revision.revisionId }, at, context, undefined, securityId);
 }
 
-function sourceFromInput(input: ResearchSourceInput, at: string, consumer: ResearchEvidenceAssemblyOptions["consumer"], expectedEnvironment: ResearchSourceInput["dataEnvironment"] = input.dataEnvironment): ResearchSourceProvenance {
-  const entitlement = input.entitlements.length === 1 ? input.entitlements[0] : undefined;
-  const scope = { providerId: input.providerId, dataset: input.dataset, market: input.market,
-    contractRef: entitlement?.contractRef ?? "", contractVersion: entitlement?.contractVersion ?? "" };
-  const permissions = Object.fromEntries(OPERATIONS.map((operation) => {
-    const decision = evaluateDataPermission(input.entitlements, scope, operation, at, consumer);
-    const environmentMatches = Boolean(entitlement && input.dataEnvironment === expectedEnvironment && entitlement.dataEnvironment === input.dataEnvironment);
-    return [operation, { allowed: decision.allowed && environmentMatches, reason: environmentMatches ? decision.reason : "source-environment-mismatch", entitlementId: decision.entitlementId }];
-  })) as Record<DataOperation, PermissionEvidence>;
-  return { providerId: input.providerId, providerName: input.providerName, dataset: input.dataset, market: input.market,
+function sourceFromInput(input: ResearchSourceInput, at: string, context: ResearchEvidenceAssemblyOptions["requestContext"], expectedEnvironment: ResearchSourceInput["dataEnvironment"] = input.dataEnvironment, securityId = context.authorizedSecurityId): ResearchSourceProvenance {
+  const expected = input.expectedContract;
+  const evaluation = evaluateResearchSourceEntitlement({
+    providerId: input.providerId, dataset: input.dataset, market: input.market, securityId,
+    sourceRecordId: input.sourceRecordId, dataEnvironment: input.dataEnvironment,
+    expectedContract: expected ?? null, records: input.technicalEntitlements ?? []
+  }, context, at);
+  const source: ResearchSourceProvenance = { providerId: input.providerId, providerName: input.providerName, dataset: input.dataset, market: input.market,
     sourceRecordId: input.sourceRecordId, sourceUrl: input.sourceUrl, sourceAsOf: input.sourceAsOf, retrievedAt: input.retrievedAt,
     dataEnvironment: input.dataEnvironment, revisionStatus: input.revisionStatus, revisionId: input.revisionId,
-    sourceKind: input.dataEnvironment, permissionScope: scope, permissions, entitledAudience: entitlement?.permittedAudience ?? null };
+    sourceKind: input.dataEnvironment };
+  const assessment = expectedEnvironment === input.dataEnvironment ? evaluation : evaluateResearchSourceEntitlement({
+    providerId: input.providerId, dataset: input.dataset, market: input.market, securityId,
+    sourceRecordId: input.sourceRecordId, dataEnvironment: "development-restricted", expectedContract: null, records: []
+  }, context, at);
+  assessmentForSource.set(source, { assessment: assessment.assessment, receipt: assessment.receipt, eligibleForAI: assessment.eligibleForAI });
+  return source;
 }
 
-function sourceEntitlementsEligible(entitlements: DataEntitlement[], source: FinancialDataProvenance, at: string, consumer: ResearchEvidenceAssemblyOptions["consumer"], providerEnvironment: ResearchSourceInput["dataEnvironment"]): boolean {
-  if (source.entitlements.length !== 1) return false;
-  const sourceEntitlement = source.entitlements[0];
-  if (source.dataEnvironment !== providerEnvironment || sourceEntitlement.dataEnvironment !== source.dataEnvironment) return false;
-  const scope = { providerId: source.providerId, dataset: source.dataset, market: source.market,
-    contractRef: sourceEntitlement.contractRef, contractVersion: sourceEntitlement.contractVersion };
-  const matches = entitlements.filter((item) => item.id === sourceEntitlement.id && item.providerId === scope.providerId
-    && item.dataset === scope.dataset && item.market === scope.market && item.contractRef === scope.contractRef
-    && item.contractVersion === scope.contractVersion);
-  if (matches.length !== 1) return false;
-  return evaluateDataPermission(entitlements, scope, "retrieval", at, consumer).allowed
-    && evaluateDataPermission(entitlements, scope, "ai-processing", at, consumer).allowed;
+function sourceEntitlementsEligible(source: FinancialDataProvenance, provider: FundamentalsProvider, securityId: string, context: ResearchEvidenceAssemblyOptions["requestContext"], providerEnvironment: ResearchSourceInput["dataEnvironment"]): boolean {
+  if (source.dataEnvironment !== providerEnvironment) return false;
+  const evaluation = evaluateResearchSourceEntitlement({
+    providerId: source.providerId, dataset: source.dataset, market: source.market, securityId,
+    sourceRecordId: source.sourceRecordId, dataEnvironment: source.dataEnvironment,
+    expectedContract: provider.getResearchEntitlementContract?.() ?? null,
+    records: source.technicalEntitlements ?? []
+  }, context);
+  return evaluation.eligibleForAI;
 }
 
-function providerEnvironmentMatches(environment: ResearchSourceInput["dataEnvironment"], entitlements: DataEntitlement[]): boolean {
+function providerEnvironmentMatches(environment: ResearchSourceInput["dataEnvironment"], entitlements: FinancialDataProvenance["entitlements"]): boolean {
   return entitlements.length > 0 && entitlements.every((entitlement) => entitlement.dataEnvironment === environment);
 }
 
-function isSourceEligible(source: ResearchSourceProvenance): boolean { return source.permissions.retrieval.allowed && source.permissions["ai-processing"].allowed; }
+function isSourceEligible(source: ResearchSourceProvenance): boolean {
+  const evaluation = assessmentForSource.get(source);
+  return Boolean(evaluation?.eligibleForAI && evaluation.assessment.decisions.retrieval.allowed && evaluation.assessment.decisions["ai-processing"].allowed);
+}
+
+function sourceOperationAllowed(source: ResearchSourceProvenance, operation: DataOperation): boolean {
+  return assessmentForSource.get(source)?.assessment.decisions[operation]?.allowed === true;
+}
+
+function permissionIds(sources: readonly ResearchSourceProvenance[]): string[] {
+  return [...new Set(sources.map((source) => assessmentForSource.get(source)?.assessment.assessmentId).filter((id): id is string => Boolean(id)))];
+}
 
 function isValidSentiment(value: unknown): value is NewsArticle["sentiment"] {
   if (!value || typeof value !== "object") return false;
@@ -363,19 +420,19 @@ export function excludeEvidenceIdCollisions(items: ResearchEvidenceItem[], limit
   return items.filter((item) => !duplicates.has(item.evidenceId));
 }
 
-function newsSource(article: NewsArticle, market: string, entitlements: DataEntitlement[], retrievedAt: string): ResearchSourceInput {
+function newsSource(article: NewsArticle, market: string, retrievedAt: string, technicalEntitlements?: ResearchSourceInput["technicalEntitlements"]): ResearchSourceInput {
   const synthetic = article.contentKind === "demo";
-  return { providerId: synthetic ? "aynox-synthetic-news" : (entitlements[0]?.providerId ?? "unknown-news-provider"),
-    providerName: article.sourceName, dataset: synthetic ? "synthetic-company-news" : (entitlements[0]?.dataset ?? "unknown-news-dataset"),
+  return { providerId: synthetic ? "aynox-synthetic-news" : (technicalEntitlements?.[0]?.providerId ?? "unknown-news-provider"),
+    providerName: article.sourceName, dataset: synthetic ? "synthetic-company-news" : (technicalEntitlements?.[0]?.dataset ?? "unknown-news-dataset"),
     market, sourceRecordId: article.id, sourceAsOf: article.publishedAt, retrievedAt,
-    dataEnvironment: synthetic ? "synthetic" : (entitlements[0]?.dataEnvironment ?? "development-restricted"), entitlements };
+    dataEnvironment: synthetic ? "synthetic" : (technicalEntitlements?.[0]?.environment ?? "development-restricted"), entitlements: [],
+    technicalEntitlements, expectedContract: synthetic ? { contractId: "aynox-synthetic-news-fixture", contractVersion: "1" } : undefined };
 }
 
 function uniqueNewsSources(articles: NewsArticle[], market: string, options: ResearchEvidenceAssemblyOptions, retrievedAt: string): ResearchSourceInput[] {
   const unique = new Map<string, ResearchSourceInput>();
   for (const article of articles) {
-    const entitlements = article.contentKind === "demo" ? [createSyntheticDemoEntitlement({ providerId: "aynox-synthetic-news", dataset: "synthetic-company-news", market })] : options.newsEntitlements?.[article.id] ?? [];
-    const source = newsSource(article, market, entitlements, retrievedAt);
+    const source = newsSource(article, market, retrievedAt, options.newsEntitlementRecords?.[article.id]);
     unique.set(`${source.providerId}:${source.dataset}:${source.market}:${source.sourceRecordId}`, source);
   }
   return [...unique.values()];
@@ -418,7 +475,9 @@ function determineCompleteness(sections: ResearchEvidenceSnapshot["sections"], e
 function makeSnapshot(input: ResearchEvidenceSnapshot): ResearchEvidenceSnapshot { return input; }
 
 function immutableSnapshot(input: ResearchEvidenceSnapshot): DeepReadonly<ResearchEvidenceSnapshot> {
-  return deepFreeze(structuredClone(makeSnapshot(input)));
+  const snapshot = deepFreeze(structuredClone(makeSnapshot(input)));
+  trustedResearchEvidenceSnapshots.add(snapshot as object);
+  return snapshot;
 }
 
 function deepFreeze<T>(value: T): DeepReadonly<T> {

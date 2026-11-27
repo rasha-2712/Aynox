@@ -2,10 +2,54 @@
 
 **Milestone:** 4 — AI-powered investment research  
 **Version:** 0.1  
-**Status:** Proposed; pending founder approval and provider/right feasibility  
+**Status:** Design proposed; Steps 3.2 and 3.3.3.1 provide a non-publishing server-side scaffold; provider/right feasibility and founder approvals remain pending
 **Prepared:** 26 November 2026  
-**Scope:** Design only. This document does not claim the proposed providers or functionality are implemented.  
+**Scope:** Milestone 4 design baseline; the Step 3.2 provider abstraction foundation and Step 3.3.3.1 verified-entitlement evidence boundary are implemented as described below. No concrete provider, report-generation operation, or publication path is connected.
 **Companion:** [Milestone 4 PRD](aynox-milestone-4-prd.md)
+
+## Step 3.2 implemented foundation
+
+The following foundation is implemented without connecting a live provider:
+
+- ResearchGenerationProvider defines a provider/model-neutral port that accepts only a projected, permission-cleared facts DTO and returns untrusted output. Request context, signed entitlement records, receipts, and operation decisions remain server-side.
+- StructuredResearchReportDraft separates model-selected `factReferences` from free-form `interpretations`. The model cannot provide values for verified financial facts, citation URLs, publication status, or other server-owned fields.
+- `validateStructuredResearchReport` performs bounded structural schema validation, snapshot/evidence-reference validation, identity/period/unit/currency/formula/lineage checks, and deterministic resolution of numeric facts. Schema validity does not prove semantic correctness: every free-form passage remains explicitly classified as an unverified AI interpretation, regardless of its context references.
+- `renderVerifiedResearchFacts` re-resolves facts against the same immutable snapshot and content digest, then formats server-owned values, units, currencies, scales, and periods. It rejects snapshot or evidence mismatches. Model-authored numeric text is never rendered in the verified-facts channel.
+- Interpretation support is not automatically proven. Unsupported or contradictory prose must remain unverified and is not eligible for publication based on structural or reference validation alone.
+- Server configuration reads AYNOX_AI_PROVIDER, AYNOX_AI_MODEL, AYNOX_AI_API_KEY, AYNOX_AI_TIMEOUT_MS, and AYNOX_AI_MAX_RETRIES. Provider, model, and credential have no defaults. The config module guards against browser execution. .env.example includes only blank credential/provider/model values.
+- The adapter registry requires an explicit provider registration and model-ID allowlist before adapter creation; an adapter echoing its configured model ID is not evidence that the model is supported. No concrete adapter is registered by this step.
+- Sensitive configuration and verified-fact rendering import Next.js's `server-only` marker. Next.js production compilation fails if these modules enter a Client Component graph; configuration errors and provider errors do not serialize credentials or raw provider payloads.
+- Provider errors use fixed safe application categories. The execution helper propagates caller cancellation and per-attempt abort signals, bounds retry count and delay, retries only explicit rate-limit and selected transient-unavailable categories, and never retries an internal timeout/cancellation while the prior operation may remain active. An adapter that ignores cancellation can leave its remote operation running; the helper fails and does not start a duplicate attempt.
+- Deterministic tests exercise structural validation, evidence binding/rendering, provider/model allowlists, error sanitization, cancellation, timeout, retry bounds, deep/oversized payloads, and server-only boundaries.
+
+### Validation layers and publication gate
+
+1. **Structural schema validation** checks JSON shape, exact keys, bounds, enums, section membership, and array limits. Passing this layer says only that output follows the contract.
+2. **Evidence-reference validation** binds the draft to a snapshot ID and SHA-256 content digest; resolves every reference; and rejects cross-security nested identities, incompatible periods, mismatched metrics, units, currency, calculation formulas, or input lineage.
+3. **Deterministic financial fact rendering** obtains values and descriptive context from authoritative server evidence. Model-authored values cannot enter this verified channel. The rendered output is re-bound to and rechecked against the same snapshot.
+4. **Semantic interpretation assessment** is not proven by schema validation or by the presence of relevant evidence IDs. Interpretation text is labeled unverified; human review or a separately evaluated semantic process would be needed before asserting support.
+5. **Report publication eligibility** remains disabled in Step 3.2 (`not_eligible_step_3_2`). No reports are generated or published to customers in this foundation.
+
+## Step 3.3.3.1 verified-entitlement evidence boundary
+
+- Evidence assembly requires a genuine server-issued request context authorized for the exact security. The snapshot binds all context fields with a server-computed digest; AI validation, generation-input projection, and deterministic rendering revalidate the context binding.
+- Research evidence uses signed technical entitlement records verified through the existing verifier and exact provider/dataset/market/security/source/contract scope. Caller-supplied legacy consumer or structural entitlement claims are ignored for research authorization.
+- Permission assessments and signed verification receipts are snapshot authorization metadata, separate from factual source provenance. Evidence items reference assessments by ID; the AI projection includes neither receipts nor operation decisions nor nested entitlement records.
+- The current production trust-root registry is empty and the production authorization adapter remains unavailable. Production evidence therefore cannot be assembled. Controlled synthetic evidence is permitted only in the explicitly test-only internal-demo policy; test signing and trust-root modules are Vitest-only and excluded from runtime imports.
+- Each operation remains independent. Retrieval plus AI processing is required for raw facts; financial metric evidence additionally requires derivation on every input; news sentiment and summaries require derivation on each source. This scaffold does not imply storage, retention, display, redistribution, or legal approval.
+- Legal/contractual status remains `pending`; technical signature verification is not legal approval. Publication eligibility remains disabled. No AI service is called and no report is generated or persisted.
+
+## Step 3.3.3.3 evidence operation enforcement corrections
+
+- Fundamentals retrieval now requires a server-side adapter preflight before either profile or statement fetch method is called. The preflight binds the trusted provider ID, configured dataset, canonical market/security, contract ID/version and a signed retrieval entitlement. Missing, invalid, expired, ambiguous or mismatched authorization fails closed. The current synthetic fixture uses a dataset/security scoped (`sourceRecordId: null`) retrieval declaration because source-record IDs are only returned with the fixture data; exact source-record entitlements are still checked independently after retrieval. This test-only dataset-scope pattern does not enable any production retrieval. A future provider must supply this authorization independently of protected response data and use a contract-approved scope granularity; production preflight remains unavailable until production auth and trust roots exist.
+- The response's provider payload is validated separately after retrieval. A valid entitlement proves only signed declared scope/operation permissions; it does not cryptographically authenticate the financial or news content. A future adapter must establish content provenance and integrity independently. Request-supplied news/ESG/provider metadata cannot be treated as a production trust source; there is no production content-trust integration, and production evidence remains denied.
+- Deterministic rendering revalidates current signed receipts and requires `display` permission for every cited source. Calculated facts additionally require display permission from every source observation in their complete calculation lineage. Display permission is independent of retrieval, derivation and AI-processing permissions. If any source denies display, the complete fact is rejected.
+- AI generation input is bounded before the final DTO is returned: at most 1,000 evidence items, 40,000 serialized characters per item, 200,000 serialized characters total, 1,000 JSON nodes per item, nesting depth 32, and 40,000 characters for any individual string. Inputs over these deterministic limits are rejected without truncating values or references.
+- Synthetic positive preflight behavior exists only through the Vitest fixture issuer/trust-root mapping. Production trust roots remain empty, production authorization remains unavailable, legal approval remains pending, and report publication remains disabled. No live providers, AI service, persistence or customer-facing report path is enabled by this correction.
+- Research evidence assembly verifies a separate signed news retrieval preflight before invoking an injected news loader. The preflight is fixed to the synthetic news dataset, dataset-level contract scope, and test trust root; missing, expired, malformed, or mismatched preflight does not invoke the loader. Provider registration has no setter, and the general UI news service reads fixed in-memory synthetic fixtures directly rather than invoking a provider. Research fallback to those fixtures and injected demo fixtures are allowed only under the explicit Vitest synthetic-evidence policy. Non-demo article content is excluded because an entitlement does not authenticate article content. No external provider can currently be selected or retrieved; production trust roots and production authorization remain unavailable.
+- Generation-input structural limits are enforced with a bounded iterative worklist: arrays are checked against remaining node capacity before enqueueing, and object properties are traversed without materializing an unbounded values array. Non-finite numbers and non-JSON object/value types are rejected. The character and depth limits remain as stated above.
+
+This step does not call an AI service, generate reports, persist report records, add Prisma models, or establish semantic correctness from schema compliance. D-31 remains open and no provider/model is selected. Other Milestone 4 work remains proposed.
 
 ## 1. Executive architecture recommendation
 
@@ -58,7 +102,7 @@ interface FundamentalsProvider {
 interface ResearchGenerationProvider {
   readonly providerName: string;
   readonly modelId: string;
-  generateStructuredReport(input: ResearchEvidenceSnapshot): Promise<unknown>;
+  generateStructuredReport(input: ResearchGenerationInput): Promise<unknown>;
 }
 ```
 
@@ -258,7 +302,7 @@ Provider details below summarize official vendor pages reviewed on 26 November 2
 5. **Period-align and calculate:** apply the discrete-quarter/YTD/annual/TTM/instant rules. Derive quarter from YTD only under the explicit compatibility rule. Calculate catalog metrics deterministically and store formula and input lineage.
 6. **Build permitted evidence snapshot:** assign stable evidence IDs only to items whose operations permit use; AI input requires `ai-processing` permission, customer output requires `display`, and persistence requires `storage`/`retention` permissions. Keep entitlement-scope references. Avoid full article text unless specifically authorized. Treat all source text as untrusted data.
 7. **Generate structured claim drafts:** call only the configured server-side `ResearchGenerationProvider` with bounded evidence and strict schema. No tool access, web search, trading, or conversational turn state. Model output includes typed claims and references; it does not supply final validation status.
-8. **Validate claims:** reject invalid schema, source IDs, security identity, incompatible periods, unsupported metric/unit/currency, observation mismatch, calculation mismatch, missing formula/input lineage, or unsupported numeric value. Numeric values are validated as structured decimals against source/calculation data with approved rounding; fact/metric UI values are rendered from validated server records. Free-form prose scanning can flag suspicious digits but is only secondary to the structured contract and deterministic rendering. Exclude/reject invalid claims before publication; `review_required` is held and not published until resolved.
+8. **Validate and render:** structurally validate bounded report references; validate snapshot/security identity and exact nested evidence fields; resolve numeric facts against observations or deterministic calculations and verify metric, period, unit, currency, formula version, and lineage. Render verified figures from server evidence only. Treat all generated prose as unverified interpretation: references do not prove relevance, entailment, or lack of contradiction. Reject malformed drafts; do not publish based solely on schema or reference validation.
 9. **Assign status and persist version:** determine generation completeness separately from evidence freshness; save immutable evidence snapshot/hash, report/schema/prompt/model/formula versions, per-source timestamps, claim validations, and last refresh-attempt status under approved rights/retention.
 10. **Render:** return safe display DTO with server-resolved citations and separate `generationStatus`, `freshnessStatus`, and latest refresh-attempt outcome. Show report generation/as-of times, data coverage and the existing News link.
 
@@ -308,6 +352,9 @@ Operational numeric SLOs, retention, support ownership and alert escalation are 
 - Send the minimum evidence necessary. Do not send user email, watchlist contents, or portfolio composition for a company report unless a later approved feature specifically needs them.
 - Evaluate provider retention, training, data residency, subprocessors, contractual roles, incident notice, and deletion. Do not treat “not used for training” as “not retained.” OpenAI’s default API abuse-monitoring logs can retain content for up to 30 days; eligibility for reduced retention is not assumed.
 - Provider market-data rights and AI vendor rights are independent: a market-data license may restrict use of its data in AI inputs, model outputs, caches, derivative reports, and customer displays. Obtain express written approval for each step.
+- Technical entitlement verification establishes only the record's authenticated issuer, integrity, declared scope, and operation permissions. It does not establish that the provider has granted Aynox the underlying contractual or legal rights. Track legal/contractual approval separately; pending approval blocks production use even when technical verification succeeds. A valid cryptographic signature or provider API response is not legal approval.
+- Before any production provider integration, evidence assembly must use authenticated entitlement verification for the exact provider, dataset, market, security/source, contract, environment, audience and operation scope. Development-restricted entitlements remain confined to controlled development fixtures. Technical verification never implies legal approval.
+- Production request authorization and entitlement verification must be bound to the same trusted request context before production evidence can be assembled or used. Production report publication remains disabled until its separate authorization, data-rights, semantic-review and publication gates are approved.
 - News source rights separately govern retrieval, storage, snippets/summaries, article text, model processing, citation, and retention. Preserve only allowed content and canonical source links.
 - Development API keys/data must be labeled and separated from production; restricted development output is never shown to production customers.
 - Logs should contain correlation IDs, provider/model name, versions, durations, cost tokens, validation categories, and status—not prompts, complete financial payloads, personal information, or credentials by default.

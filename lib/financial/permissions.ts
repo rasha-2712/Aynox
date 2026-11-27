@@ -2,7 +2,7 @@ import type { DataConsumerContext, DataEntitlement, DataOperation, DataPermissio
 
 export interface PermissionDecision {
   allowed: boolean;
-  reason: "allowed" | "missing-entitlement" | "ambiguous-entitlement" | "scope-mismatch" | "inactive-entitlement" | "operation-unverified" | "operation-denied" | "conditions-unmet" | "environment-mismatch" | "audience-mismatch" | "unknown-consumer-context";
+  reason: "allowed" | "missing-entitlement" | "ambiguous-entitlement" | "scope-mismatch" | "inactive-entitlement" | "operation-unverified" | "operation-denied" | "conditions-unmet" | "environment-mismatch" | "audience-mismatch" | "unknown-consumer-context" | "unauthenticated-entitlement";
   entitlementId?: string;
 }
 
@@ -21,6 +21,11 @@ export function evaluateDataPermission(
   if (matching.length > 1) return { allowed: false, reason: "ambiguous-entitlement" };
 
   const entitlement = matching[0];
+  // Plain DataEntitlement objects are declarations only. Production requires a future
+  // authenticated verifier integration; no caller-supplied object can grant it here.
+  if (entitlement.dataEnvironment === "production-licensed") {
+    return { allowed: false, reason: "unauthenticated-entitlement", entitlementId: entitlement.id };
+  }
   if (!consumer || !isKnownEnvironment(consumer.environment) || !isKnownAudience(consumer.audience)) {
     return { allowed: false, reason: "unknown-consumer-context", entitlementId: entitlement.id };
   }
@@ -34,8 +39,7 @@ export function evaluateDataPermission(
     return { allowed: false, reason: "audience-mismatch", entitlementId: entitlement.id };
   }
   if ((consumer.environment === "synthetic" && consumer.audience !== "demo-only")
-      || (consumer.environment === "development-restricted" && consumer.audience !== "internal")
-      || (consumer.environment === "production-licensed" && consumer.audience !== "named-customer" && consumer.audience !== "public")) {
+      || (consumer.environment === "development-restricted" && consumer.audience !== "internal")) {
     return { allowed: false, reason: "environment-mismatch", entitlementId: entitlement.id };
   }
   const timestamp = Date.parse(at);

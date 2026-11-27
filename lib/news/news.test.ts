@@ -3,8 +3,8 @@ import { demoNewsArticles } from "@/lib/news/demo-news";
 import { areDuplicateHeadlines, deduplicateNews, normalizeHeadline } from "@/lib/news/deduplicate";
 import { aggregateTrackedCompanyNews, calculateSentimentDistribution, filterNewsArticles } from "@/lib/news/query";
 import { generateCompanyNewsReport } from "@/lib/news/report";
-import { analyzeNewsArticle, getNewsArticles, setNewsProvider } from "@/lib/news/service";
-import { MockNewsProvider } from "@/lib/news/mock-news-provider";
+import { analyzeNewsArticle, getNewsArticles } from "@/lib/news/service";
+import { MockNewsProvider } from "@/lib/news/testing/mock-news-provider";
 import { DemoLexiconSentimentClassifier } from "@/lib/news/sentiment";
 import { demoSecurities } from "@/lib/data/demo-data";
 import type { NewsArticle, NewsArticleInput } from "@/types/news";
@@ -33,18 +33,22 @@ describe("company news intelligence", () => {
 
   it("rejects malformed IDs at news ingestion and direct analysis boundaries", async () => {
     const invalidIds: unknown[] = ["", " \t ", undefined, 17];
-    const malformed = invalidIds.map((id) => ({ ...seed, id })) as unknown as NewsArticleInput[];
-    const valid = { ...seed, id: "valid-ingested-id" };
-    setNewsProvider({ providerName: "test", isDemo: true, async listArticles() { return [...malformed, valid]; } });
-    try {
-      const ingested = await getNewsArticles();
-      expect(ingested.map((article) => article.id)).toEqual([valid.id]);
-      for (const id of invalidIds) {
-        expect(() => analyzeNewsArticle({ ...seed, id } as unknown as NewsArticleInput)).toThrow(TypeError);
-      }
-    } finally {
-      setNewsProvider(new MockNewsProvider());
+    for (const id of invalidIds) {
+      expect(() => analyzeNewsArticle({ ...seed, id } as unknown as NewsArticleInput)).toThrow(TypeError);
     }
+    const service = await import("@/lib/news/service");
+    expect("setNewsProvider" in service).toBe(false);
+    expect((await getNewsArticles()).every((article) => article.contentKind === "demo")).toBe(true);
+  });
+
+  it("rejects direct synthetic provider calls without a verified retrieval token", async () => {
+    const provider = new MockNewsProvider();
+    await expect(Reflect.apply(provider.listArticles, provider, [])).rejects.toThrow("Verified news retrieval authorization is required.");
+    await expect(Reflect.apply(provider.listArticles, provider, [{
+      providerId: "aynox-synthetic-news", dataset: "synthetic-company-news", market: "XNAS",
+      securityId: demoSecurities[0].id, contractId: "aynox-synthetic-news-fixture",
+      contractVersion: "1", retrievalScope: "dataset", requestId: "forged"
+    }])).rejects.toThrow("Verified news retrieval authorization is required.");
   });
 
   it("filters by stable company, ticker, topic, inclusive date range, and headline/summary search", async () => {
